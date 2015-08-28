@@ -4,7 +4,7 @@ from PyQt4 import QtCore, QtGui, uic
 import sys, queue, pythoncom, types
 
 import __main__, pathlib
-appPath = pathlib.Path(__file__).absolute().parent
+appPath = pathlib.Path(__main__.__file__).absolute().parent
 
 DEBUG = False
 print_def = lambda *args: not DEBUG or print(*args, file=sys.__stdout__)
@@ -134,28 +134,53 @@ def pyqtThreadedSlot(*args, **kwargs):
         return wrap_func
     return threaded_int
 
-def QtApp(Form, *args, flags=None, ui=None, stdout=None, tray=None, hidden=False, **kwargs):
+#Events: trayIconActivated
+def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
     "Create new QApplication and specified window"
     app = QtGui.QApplication(sys.argv)
-    def __init__(self, flags, ui, __init__def=Form.__init__):
-        super(Form, self).__init__(flags=flags or QtCore.Qt.WindowType())
-        uic.loadUi(str(appPath.joinpath(ui or Form.__name__.lower()))+".ui", self)
-        if stdout: redirect_stdout(getattr(self, stdout))
-        __init__def(self, *args, **kwargs)
-    Form.__init__ = __init__
-    if type(tray) is dict:
-        if type(tray["icon"]) is QtGui.QStyle.StandardPixmap:
-            icon = app.style().standardIcon(tray["icon"])
-        else: icon = QtGui.QIcon(tray["icon"])
-        Form.tray = QtGui.QSystemTrayIcon(icon)
-        if "tip" in tray:
-            Form.tray.setToolTip(tray["tip"])
-        Form.tray.setContextMenu(QtGui.QMenu())
-        Form.tray.show()
-    form = Form(flags, ui)
+    class Form_(Form):
+        def __init__(self, flags, ui):
+            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
+            uic.loadUi(str(appPath.joinpath(ui or Form.__name__.lower()))+".ui", self)
+            if stdout: redirect_stdout(getattr(self, stdout))
+            if type(tray) is dict:
+                if type(tray["icon"]) is QtGui.QStyle.StandardPixmap:
+                    icon = app.style().standardIcon(tray["icon"])
+                else: icon = QtGui.QIcon(tray["icon"])
+                self.tray = QtGui.QSystemTrayIcon(icon)
+                if "tip" in tray:
+                    self.tray.setToolTip(tray["tip"])
+                self.tray.setContextMenu(QtGui.QMenu())
+                self.tray.show()
+                if hasattr(self, "trayIconActivated"):
+                    self.tray.activated.connect(self.trayIconActivated)
+                self.tray.addMenuItem = bind(addMenuItem, self.tray)
+                QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
+            super().__init__(*args, **kwargs)
+    form = Form_(flags, ui)
     if not hidden:
         form.show()
+    def aboutToQuit(): #cleanup before exit
+        del form.tray.addMenuItem
+    app.aboutToQuit.connect(aboutToQuit)
     sys.exit(app.exec_())
+    
+def addMenuItem(self, *args):
+    for i in range(0, len(args), 2):
+        self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])
+    
+def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, exec_=False, ontop=False, **kwargs):
+    class Form_(Form):
+        def __init__(self, flags, ui):
+            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
+            uic.loadUi(str(appPath.joinpath(ui or Form.__name__.lower()))+".ui", self)
+            if "__init__" in Form.__dict__:
+                super().__init__(*args, **kwargs)
+    form = inmain(Form_, flags, ui)
+#    form.setWindowModality(1)
+    if exec_:
+        return inmain(form.exec), form.getResult()
+    else: return form
 
 def redirect_stdout(wgt):
     """Redirect standard output to the specified widget"""

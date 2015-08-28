@@ -8,7 +8,7 @@ from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, py
 import struct, json, pathlib
 import importlib
 import win32file, win32con, winnt
-from threaded_ui import QtApp, QtCore
+from threaded_ui import QtApp
 
 import socketserver
 SHARED_SERVER_ADDR, SHARED_SERVER_PORT = "127.0.0.1", 50002
@@ -115,16 +115,20 @@ class SimplePython(QtGui.QWidget):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
         threading.Thread(target=lambda:(pythoncom.CoInitialize(), self.server.serve_forever())).start()
-        def activated(reason):
-            if reason == QtGui.QSystemTrayIcon.Trigger:
-                self.show()
-                self.activateWindow()
-        self.tray.activated.connect(activated)
-        self.tray.contextMenu().addAction("Exit").triggered.connect(self.quit_)
+        self.tray.addMenuItem("Exit", self.quit_)
         self.btnExit.clicked.connect(self.quit_)
         self.b.clicked.connect(self.update)
+
+    def trayIconActivated(self, reason):
+        if reason == QtGui.QSystemTrayIcon.Trigger:
+            self.show()
+            self.activateWindow()
         
     def update(self):
+#        d=QtGui.QDialog()
+#        d.setWindowModality(1)
+#        d.exec()
+    
         ret = ""
         for m in macro_tree:
             ret += "» "+m+"\n"
@@ -143,5 +147,5 @@ class SimplePython(QtGui.QWidget):
             event.ignore()
             self.hide()
         
-QtApp(SimplePython, hidden=True, flags=QtCore.Qt.WindowStaysOnTopHint, stdout="txtConsole",
+QtApp(SimplePython, ontop=True, stdout="txtConsole", #hidden=True, 
       tray={"icon": QtGui.QStyle.SP_ArrowRight, "tip": "SimplePython Server"})

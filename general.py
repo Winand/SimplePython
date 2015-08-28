@@ -10,31 +10,21 @@ macro_tree, modules = {}, {}
 comobj_cache = {}
 
 from win32com.client import Dispatch
-import pythoncom, string, re, datetime
+import pythoncom, string, re, sys
 from functools import wraps
-
-def _typename(obj):
-    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
-    if name.startswith("_"): name = name[1:] #FIXME: dirty hack?
-    return name
+import context
+from threaded_ui import Widget
     
-def _datevalue(s, f):
-    try: return datetime.datetime.strptime(s, f).date()
-    except: pass
-    
-ctx_doc_list = ["Range", "Cells"] #active sheet context
-ctx_app_list = ["Selection", "Intersect", "ActiveSheet", "ActiveWindow", "ActiveCell"]
-ctx_custom = {"TypeName": _typename, "CreateObject": Dispatch, "msoFalse": 0,
-              "xlSortOnValues": 0, "xlDescending": 2, "xlSortNormal": 0,
-              "xlGuess": 0, "xlTopToBottom": 1, "xlPinYin": 1,
-              "ppSlideSizeOnScreen": 1, "DateValue": _datevalue}
+ctx_app_list = ["Selection", "ActiveSheet", "ActiveWindow", "ActiveCell"]
               
 COL = {} #dict of column names
 for i in string.ascii_uppercase:
     COL[i] = ord(i)-ord("A")+1
     COL["A"+i] = 26+ord(i)-ord("A")+1
     
+
 def Like(s, p):
+    "Check string to match RegExp"
     return re.compile(p+r"\Z").match(s) is not None
 
 def macro(func):
@@ -49,11 +39,14 @@ def macro(func):
     def wrapper(doc):
         doc_obj = getOpenedFileObject(doc)
         if doc_obj:
-            with context(doc_obj, modules[module]):
+            with Context(doc_obj, modules[module]):
                 try:
                     return func(doc_obj)
                 except Exception as e:
-                    print("Macro '%s' failed with exception: %s"%(func.__name__, e))
+                    frame = sys.exc_info()[2].tb_next
+                    if not frame: frame = sys.exc_info()[2]
+                    print("Exception in macro '%s': %s[%s:%d] %s" %
+                        (func.__name__, type(e).__name__, module, frame.tb_lineno, e))
         else: print("Opened document '%s' not found"%doc)
         
     return wrapper
@@ -74,22 +67,20 @@ def getOpenedFileObject(name):
 def getMacroList():
     return [f if m==DEF_MODULE else m+"."+f for m in macro_tree for f in macro_tree[m]]
     
-class context():
+class Context():
     def __init__(self, doc, module):
         self.doc, self.module = doc, module
         
     def __enter__(self):
-        active, app = self.doc.ActiveSheet, self.doc.Parent
-        for i in ctx_doc_list:
-            attr = getattr(active, i, None)
-            if attr: setattr(self.module, i, attr)
+        app = self.doc.Parent
+        context.context_app, context.context_wb, context.context_sh = app, self.doc, self.doc.ActiveSheet
         for i in ctx_app_list:
             attr = getattr(app, i, None)
             if attr: setattr(self.module, i, attr)
-        for i in ctx_custom:
-            setattr(self.module, i, ctx_custom[i])
         
     def __exit__(self, exc_type, exc_value, traceback):
-        for i in ctx_doc_list+ctx_app_list+list(ctx_custom.keys()):
+        for i in ctx_app_list:
             if hasattr(self.module, i): delattr(self.module, i)
+
+context.macro = macro #so macro can be imported from context
             

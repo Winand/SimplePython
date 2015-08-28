@@ -5,7 +5,7 @@ Created on Thu Aug 20 13:21:53 2015
 @author: Winand
 """
     
-from general import macro, COL
+from context import *
 
 @macro
 def unmerge_and_fill(wb):
@@ -66,4 +66,4 @@ def я_asrb_format_org(wb):
         if text: win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
         win32clipboard.CloseClipboard()
     copy(clean(str(ActiveCell.Value)))
-
+    
