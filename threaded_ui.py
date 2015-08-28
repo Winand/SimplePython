@@ -1,10 +1,7 @@
 __author__ = 'МакаровАС'
 
 from PyQt4 import QtCore, QtGui, uic
-import sys, queue, pythoncom, types
-
-import __main__, pathlib
-appPath = pathlib.Path(__main__.__file__).absolute().parent
+import sys, queue, pythoncom, types, pathlib
 
 DEBUG = False
 print_def = lambda *args: not DEBUG or print(*args, file=sys.__stdout__)
@@ -133,6 +130,10 @@ def pyqtThreadedSlot(*args, **kwargs):
             GenericThread(self, func, *args1, **kwargs1)
         return wrap_func
     return threaded_int
+    
+def module_path(cls):
+    "Get module folder path from class"
+    return pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
 
 #Events: trayIconActivated
 def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
@@ -141,7 +142,7 @@ def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=
     class Form_(Form):
         def __init__(self, flags, ui):
             super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
-            uic.loadUi(str(appPath.joinpath(ui or Form.__name__.lower()))+".ui", self)
+            uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
             if stdout: redirect_stdout(getattr(self, stdout))
             if type(tray) is dict:
                 if type(tray["icon"]) is QtGui.QStyle.StandardPixmap:
@@ -173,7 +174,7 @@ def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, exec_=False, onto
     class Form_(Form):
         def __init__(self, flags, ui):
             super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
-            uic.loadUi(str(appPath.joinpath(ui or Form.__name__.lower()))+".ui", self)
+            uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
             if "__init__" in Form.__dict__:
                 super().__init__(*args, **kwargs)
     form = inmain(Form_, flags, ui)
