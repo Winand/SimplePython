@@ -8,7 +8,7 @@ Created on Thu Aug 20 13:21:53 2015
 from context import *
 
 @macro
-def unmerge_and_fill(wb):
+def unmerge_and_fill():
     "разгруппировать все ячейки в Selection и ячейки каждой \
     бывшей группы заполнить значениями из их первых ячеек"
     if TypeName(Selection) != "Range": return
@@ -24,7 +24,7 @@ def fitFactor(ws, hs, wd, hd):
     return f2 if f2 < f1 else f1
             
 @macro
-def ЭкспортВПрезентацию(wb):
+def ЭкспортВПрезентацию():
     SLIDE_MARGIN = 8
     pp = CreateObject("PowerPoint.Application")
     pr = pp.Presentations.Add()
@@ -64,21 +64,36 @@ def copy(text=None):
     win32clipboard.CloseClipboard()
     
 @macro
-def я_asrb_format_org(wb):
+def я_asrb_format_org():
     'Вспомогательный макрос, форматирует имя организации для добавления в GenerateOrgs'
     copy(clean(str(ActiveCell.Value)))
     
 @macro
-def ttt(wb):
+def ttt():
+    from context import context_app
+    context_app.ScreenUpdating=False
     for i in Selection:
         x = i.Value
         if type(x) is str and len(x):
             ch = x.strip("г. ").split(".")
             if len(ch)==2:
-                res = "01.%02s.%s%02s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
+                res = "1.%s.%s%s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
             elif len(ch)==3:
-                res = "%02s.%02s.%s%02s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
+                res = "%s.%s.%s%s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
             else: print(x, ch)
             i.Value = res
-    
-    
+@macro
+def ttt2():
+    from context import context_app
+    context_app.ScreenUpdating=False
+    for i in Selection:
+        x = i.Value
+        if type(x) is str and len(x):
+            ch = tuple(x.strip("г. ").split("."))
+            if len(ch)==2:
+                res = "%s.%s.2015"%ch
+            elif len(ch)==3:
+                res = "%s.%s.%s%s"%(ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
+            else: print(x, ch)
+            i.Value = res
+            

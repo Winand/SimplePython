@@ -47,12 +47,14 @@ def macro(func):
         if doc_obj:
             with Context(doc_obj, modules[module]):
                 try:
-                    return func(doc_obj)
+                    return func()
                 except Exception as e:
                     frame = sys.exc_info()[2].tb_next
                     if not frame: frame = sys.exc_info()[2]
                     print("Exception in macro '%s': %s[%s:%d] %s" %
                         (func.__name__, type(e).__name__, module, frame.tb_lineno, e))
+                finally:
+                    context.context_app.ScreenUpdating = True #Turn back updating!
         else: print("Opened document '%s' not found"%doc)
         
     return wrapper

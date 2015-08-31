@@ -1,7 +1,7 @@
 __author__ = 'МакаровАС'
 
 from PyQt4 import QtCore, QtGui, uic
-import sys, queue, pythoncom, types, pathlib
+import sys, queue, pythoncom, types, pathlib, win32con, win32gui
 
 DEBUG = False
 print_def = lambda *args: not DEBUG or print(*args, file=sys.__stdout__)
@@ -134,11 +134,21 @@ def pyqtThreadedSlot(*args, **kwargs):
 def module_path(cls):
     "Get module folder path from class"
     return pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
+    
+class QApplication(QtGui.QApplication):
+    terminated = QtCore.pyqtSignal()
+    def winEventFilter(self, message):
+        if message.message == win32con.WM_DESTROY:
+            if win32gui.GetClassName(int(message.hwnd)
+                        ).startswith("QEventDispatcherWin32_Internal_Widget"):
+                self.terminated.emit()
+        return QtGui.QApplication.winEventFilter(self, message)
 
-#Events: trayIconActivated
+#Widget events are connected to appropriate defs - <widget>_<signal>()
+#To catch terminated signal connect it manually
 def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
     "Create new QApplication and specified window"
-    app = QtGui.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     class Form_(Form):
         def __init__(self, flags, ui):
             super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
@@ -161,6 +171,7 @@ def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=
                     signal = getattr(widgets[i], m[len(i)+1:], None)
                     if signal: signal.connect(bind(members[m], self))
                     else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
+            self.terminated = app.terminated
             if "__init__" in members:
                 super().__init__(*args, **kwargs)
     form = Form_(flags, ui)

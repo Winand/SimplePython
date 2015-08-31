@@ -116,6 +116,7 @@ class SimplePython(QtGui.QWidget):
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
         threading.Thread(target=lambda:(pythoncom.CoInitialize(), self.server.serve_forever())).start()
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
+        self.terminated.connect(self.btnExit_clicked)
 
     def tray_activated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Trigger:
