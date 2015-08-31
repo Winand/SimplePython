@@ -55,15 +55,30 @@ def clean(org):
     org = org.replace(' ж д', '').replace('ж д ', '')
     if org.endswith(" жд"): org = org[:-3]
     return org.strip()    
+
+def copy(text=None):
+    import win32clipboard
+    win32clipboard.OpenClipboard()
+    win32clipboard.EmptyClipboard()
+    if text: win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
+    win32clipboard.CloseClipboard()
     
 @macro
 def я_asrb_format_org(wb):
     'Вспомогательный макрос, форматирует имя организации для добавления в GenerateOrgs'
-    def copy(text=None):
-        import win32clipboard
-        win32clipboard.OpenClipboard()
-        win32clipboard.EmptyClipboard()
-        if text: win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
-        win32clipboard.CloseClipboard()
     copy(clean(str(ActiveCell.Value)))
+    
+@macro
+def ttt(wb):
+    for i in Selection:
+        x = i.Value
+        if type(x) is str and len(x):
+            ch = x.strip("г. ").split(".")
+            if len(ch)==2:
+                res = "01.%02s.%s%02s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
+            elif len(ch)==3:
+                res = "%02s.%02s.%s%02s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
+            else: print(x, ch)
+            i.Value = res
+    
     

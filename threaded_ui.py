@@ -153,11 +153,16 @@ def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=
                     self.tray.setToolTip(tray["tip"])
                 self.tray.setContextMenu(QtGui.QMenu())
                 self.tray.show()
-                if hasattr(self, "trayIconActivated"):
-                    self.tray.activated.connect(self.trayIconActivated)
                 self.tray.addMenuItem = bind(addMenuItem, self.tray)
                 QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
-            super().__init__(*args, **kwargs)
+            widgets, members = super(Form, self).__dict__, Form.__dict__
+            for i in widgets:
+                for m in [j for j in members if j.startswith(i+"_")]:
+                    signal = getattr(widgets[i], m[len(i)+1:], None)
+                    if signal: signal.connect(bind(members[m], self))
+                    else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
+            if "__init__" in members:
+                super().__init__(*args, **kwargs)
     form = Form_(flags, ui)
     if not hidden:
         form.show()

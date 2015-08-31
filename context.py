@@ -6,7 +6,6 @@ Created on Thu Aug 27 10:45:29 2015
 """
 
 import datetime, dateutil.parser
-from dateutil.parser import parse
 from win32com.client import Dispatch
 
 context_app, context_wb, context_sh = None, None, None

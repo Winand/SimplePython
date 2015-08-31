@@ -10,7 +10,7 @@ macro_tree, modules = {}, {}
 comobj_cache = {}
 
 from win32com.client import Dispatch
-import pythoncom, string, re, sys
+import pythoncom, string, re, sys, datetime
 from functools import wraps
 import context
 from threaded_ui import Widget
@@ -22,6 +22,12 @@ for i in string.ascii_uppercase:
     COL[i] = ord(i)-ord("A")+1
     COL["A"+i] = 26+ord(i)-ord("A")+1
     
+import builtins
+__print_def = builtins.print
+def __print(*args, **kwargs):
+    "print with timestamp"
+    __print_def(datetime.datetime.now().strftime("%M:%S|"), *args, **kwargs)
+builtins.print = __print
 
 def Like(s, p):
     "Check string to match RegExp"

@@ -24,7 +24,27 @@
        <string>Console</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="0" column="0">
+       <item row="1" column="1">
+        <widget class="QPushButton" name="btnClear">
+         <property name="text">
+          <string>Clear</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <spacer name="horizontalSpacer_3">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="0" column="0" colspan="2">
         <widget class="QPlainTextEdit" name="txtConsole">
          <property name="readOnly">
           <bool>true</bool>
@@ -46,7 +66,7 @@
         </widget>
        </item>
        <item row="1" column="1">
-        <widget class="QPushButton" name="b">
+        <widget class="QPushButton" name="btnUpdate">
          <property name="text">
           <string>Update</string>
          </property>

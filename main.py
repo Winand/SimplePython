@@ -84,9 +84,9 @@ def initModuleLoader():
         try:
             macro_tree[mod_name] = []
             modules[mod_name] = importlib.import_module(SOURCEDIR+"."+mod_name)
-            print("Module '%s' (re)loaded"%mod_name)
+            print("Module '%s' updated"%mod_name)
         except Exception as e:
-            print("Failed to (re)load '%s' module: %s: %s"%(mod_name, type(e).__name__, e))
+            print("Failed to update '%s' module: %s: %s"%(mod_name, type(e).__name__, e))
             del macro_tree[mod_name]
             
             
@@ -115,20 +115,20 @@ class SimplePython(QtGui.QWidget):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
         threading.Thread(target=lambda:(pythoncom.CoInitialize(), self.server.serve_forever())).start()
-        self.tray.addMenuItem("Exit", self.quit_)
-        self.btnExit.clicked.connect(self.quit_)
-        self.b.clicked.connect(self.update)
+        self.tray.addMenuItem("Exit", self.btnExit_clicked)
 
-    def trayIconActivated(self, reason):
+    def tray_activated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Trigger:
             self.show()
             self.activateWindow()
+            
+    def btnClear_clicked(self):
+        self.txtConsole.clear()
         
-    def update(self):
+    def btnUpdate_clicked(self):
 #        d=QtGui.QDialog()
 #        d.setWindowModality(1)
 #        d.exec()
-    
         ret = ""
         for m in macro_tree:
             ret += "» "+m+"\n"
@@ -137,7 +137,7 @@ class SimplePython(QtGui.QWidget):
             ret += "\n"
         self.txtModules.setPlainText(ret)
         
-    def quit_(self):
+    def btnExit_clicked(self):
         self.server.shutdown()
         self.server.server_close()            
         QtGui.qApp.quit()
@@ -147,5 +147,5 @@ class SimplePython(QtGui.QWidget):
             event.ignore()
             self.hide()
         
-QtApp(SimplePython, ontop=True, stdout="txtConsole", #hidden=True, 
+QtApp(SimplePython, ontop=True, hidden=True, #stdout="txtConsole", 
       tray={"icon": QtGui.QStyle.SP_ArrowRight, "tip": "SimplePython Server"})
