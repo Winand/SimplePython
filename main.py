@@ -4,7 +4,7 @@ Created on Thu Aug 20 13:20:59 2015
 
 @author: Winand
 """
-from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom
+from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom, print
 import struct, json, pathlib
 import importlib
 import win32file, win32con, winnt

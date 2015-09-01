@@ -70,8 +70,7 @@ def я_asrb_format_org():
     
 @macro
 def ttt():
-    from context import context_app
-    context_app.ScreenUpdating=False
+    App.ScreenUpdating = False
     for i in Selection:
         x = i.Value
         if type(x) is str and len(x):
@@ -80,12 +79,13 @@ def ttt():
                 res = "1.%s.%s%s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
             elif len(ch)==3:
                 res = "%s.%s.%s%s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
-            else: print(x, ch)
+            else:
+                print(x, ch)
+                res = x
             i.Value = res
 @macro
 def ttt2():
-    from context import context_app
-    context_app.ScreenUpdating=False
+    App.ScreenUpdating=False
     for i in Selection:
         x = i.Value
         if type(x) is str and len(x):

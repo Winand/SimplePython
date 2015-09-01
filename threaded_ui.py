@@ -141,11 +141,12 @@ class QApplication(QtGui.QApplication):
         if message.message == win32con.WM_DESTROY:
             if win32gui.GetClassName(int(message.hwnd)
                         ).startswith("QEventDispatcherWin32_Internal_Widget"):
+                print("Application terminated.")
                 self.terminated.emit()
         return QtGui.QApplication.winEventFilter(self, message)
 
 #Widget events are connected to appropriate defs - <widget>_<signal>()
-#To catch terminated signal connect it manually
+#To catch terminated signal (QProcess.terminate) connect it manually
 def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
     "Create new QApplication and specified window"
     app = QApplication(sys.argv)
@@ -155,10 +156,9 @@ def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=
             uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
             if stdout: redirect_stdout(getattr(self, stdout))
             if type(tray) is dict:
-                if type(tray["icon"]) is QtGui.QStyle.StandardPixmap:
-                    icon = app.style().standardIcon(tray["icon"])
-                else: icon = QtGui.QIcon(tray["icon"])
-                self.tray = QtGui.QSystemTrayIcon(icon)
+                f = app.style().standardIcon \
+                    if type(tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+                self.tray = QtGui.QSystemTrayIcon(f(tray["icon"]))
                 if "tip" in tray:
                     self.tray.setToolTip(tray["tip"])
                 self.tray.setContextMenu(QtGui.QMenu())
