@@ -24,7 +24,7 @@ for i in string.ascii_uppercase:
 def print(*args, **kwargs):
     "print with timestamp"
     builtins.print(datetime.datetime.now().strftime("%M:%S|"), *args, **kwargs)
-
+    
 def macro(func):
     if func.__module__.startswith(SOURCEDIR+"."):
         module = func.__module__[len(SOURCEDIR+"."):]
@@ -38,8 +38,8 @@ def macro(func):
         doc_obj = getOpenedFileObject(doc)
         if doc_obj:
             context.context(doc_obj, modules[module])
-#            with Profile():            
             try:
+#                with Profile():        
                 return func()
             except Exception as e:
                 frame = sys.exc_info()[2].tb_next
@@ -48,7 +48,6 @@ def macro(func):
                     (func.__name__, type(e).__name__, module, frame.tb_lineno, e))
             finally:
                 context.App.ScreenUpdating = True #Turn back updating!
-                
         else: print("Opened document '%s' not found"%doc)
     return wrapper
 
@@ -64,8 +63,8 @@ def getOpenedFileObject(name):
     ctx, rot = pythoncom.CreateBindCtx(0), pythoncom.GetRunningObjectTable()
     for i in rot:
         if i.GetDisplayName(ctx, None) == name:
-            comobj_cache[name] = Dispatch(rot.GetObject(i).QueryInterface(pythoncom.IID_IDispatch))
-            gencache.EnsureDispatch(comobj_cache[name]) #FIXME: is it good way to build cache?
+            comobj_cache[name] = gencache.EnsureDispatch(
+                    rot.GetObject(i).QueryInterface(pythoncom.IID_IDispatch))
             return comobj_cache[name]
     
 def getMacroList():

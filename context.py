@@ -6,7 +6,7 @@ Created on Thu Aug 27 10:45:29 2015
 """
 
 import datetime, dateutil.parser, re
-from win32com.client import Dispatch
+from win32com.client import gencache
 
 #context_app, context_wb, context_sh = None, None, None
 #macro = None
@@ -34,13 +34,13 @@ msoTriStateToggle = -3
 msoTrue = -1
 
 #Interaction
-CreateObject = Dispatch
+CreateObject = gencache.EnsureDispatch
 
 #Information
 def TypeName(obj):
-    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
-    if name.startswith("_"): name = name[1:] #FIXME: dirty hack?
-    return name
+#    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
+    name = i.__class__.__name__ #Cache must be built
+    return name[name.startswith("_"):]
     
 #DateTime
 def DateValue(s):
@@ -69,4 +69,6 @@ def context(doc, module):
     context_app = doc.Parent
     app_ctx = app_ctxs[context_app.Name]
     for i in app_ctx:
-        setattr(module, i, getattr(context_app, i))
+        try: attr = getattr(context_app, i, None)
+        except: attr = None
+        setattr(module, i, attr)

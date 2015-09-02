@@ -6,6 +6,7 @@ Created on Thu Aug 20 13:21:53 2015
 """
     
 from context import *
+import time
 
 @macro
 def unmerge_and_fill():
@@ -33,7 +34,7 @@ def ЭкспортВПрезентацию():
     for i in ActiveWindow.SelectedSheets:
         if TypeName(i) == "Chart":
             i.ChartArea.Copy()
-            sl = pr.Slides.AddSlide(pr.Slides.count + 1, blank)
+            sl = pr.Slides.AddSlide(pr.Slides.Count + 1, blank)
             sl.Select()
             pp.ActiveWindow.View.PasteSpecial(Link=msoFalse)
             sh = sl.Shapes(1)
@@ -70,19 +71,22 @@ def я_asrb_format_org():
     
 @macro
 def ttt():
-    App.ScreenUpdating = False
-    for i in Selection:
-        x = i.Value
-        if type(x) is str and len(x):
-            ch = x.strip("г. ").split(".")
-            if len(ch)==2:
-                res = "1.%s.%s%s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
-            elif len(ch)==3:
-                res = "%s.%s.%s%s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
-            else:
-                print(x, ch)
-                res = x
-            i.Value = res
+    print("started")
+    time.sleep(2)
+    print("ended")
+#    App.ScreenUpdating = False
+#    for i in Selection:
+#        x = i.Value
+#        if type(x) is str and len(x):
+#            ch = x.strip("г. ").split(".")
+#            if len(ch)==2:
+#                res = "1.%s.%s%s" % (ch[0], "20" if len(ch[1])==2 else "", ch[1])
+#            elif len(ch)==3:
+#                res = "%s.%s.%s%s" % (ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
+#            else:
+#                print(x, ch)
+#                res = x
+#            i.Value = res
 @macro
 def ttt2():
     App.ScreenUpdating=False

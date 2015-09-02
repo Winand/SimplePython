@@ -8,7 +8,7 @@ from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, py
 import struct, json, pathlib
 import importlib
 import win32file, win32con, winnt
-from threaded_ui import QtApp
+from threaded_ui import QtApp, GenericThread
 
 import socketserver
 SHARED_SERVER_ADDR, SHARED_SERVER_PORT = "127.0.0.1", 50002
@@ -19,6 +19,12 @@ from PyQt4 import QtGui
             
 class TCPServer(socketserver.TCPServer):
     allow_reuse_address = True
+    
+def macro_caller(macro, *args, **kwargs):
+    pythoncom.CoInitialize()
+    macro(*args, **kwargs)
+    
+thd = None
     
 class Handler(socketserver.BaseRequestHandler):
     def sendString(self, s):
@@ -35,26 +41,36 @@ class Handler(socketserver.BaseRequestHandler):
         
     def handle(self):
         msg = json.loads("{%s}"%self.recvString())
-        if msg["Type"] in ("Call", "Doc"):
-            path = msg["Macro"].rsplit(".", 1)
+        self.sendString(self.handle_wrap(msg["Type"], msg))
+        
+    def handle_wrap(self, msg, args):
+        if msg in ("Call", "Doc"):
+            path = args["Macro"].rsplit(".", 1)
             if len(path)==1: path.insert(0, DEF_MODULE)
             if path[0] in macro_tree and path[1] in macro_tree[path[0]]:
                 macro = getattr(modules[path[0]], path[1], None)
             else: macro = None
-            if not macro: self.sendString("SERVER_NO_MACRO")
-            elif msg["Type"]=="Doc":
-                print("Help on '%s' requested"%msg["Macro"])
-                self.sendString(macro.__doc__ or "")
+            if not macro: return "SERVER_NO_MACRO"
+            elif msg == "Doc":
+                print("Help on '%s' requested"%args["Macro"])
+                return macro.__doc__ or ""
             else:
-                print("Macro '%s' called"%path[1])
-                self.sendString("OK")
-                macro(msg["Workbook"])
-        elif msg["Type"] == "Request":
+                print("Macro '%s' called... "%path[1], end="")
+                global thd
+                if thd and thd.isAlive():
+                    print("macro running")
+                else:
+                    thd=threading.Thread(target=macro_caller, args=(macro, args["Workbook"]))
+                    thd.start()
+#                GenericThread(lambda a: None, args["Workbook"])
+                print()
+                return "OK"
+        elif msg == "Request":
             print("Macro list requested")
-            self.sendString("|".join(getMacroList()))
-        elif msg["Type"] == "Test":
+            return "|".join(getMacroList())
+        elif msg == "Test":
             print("Connection established")
-            self.sendString("OK")
+            return "Busy" if thd and thd.isAlive() else "OK"
         else: print("Unknown message")
        
 watch, lock = {}, threading.RLock()
