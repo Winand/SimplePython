@@ -9,7 +9,7 @@ SOURCEDIR, DEF_MODULE = "source", "default"
 macro_tree, modules = {}, {}
 comobj_cache = {}
 
-from win32com.client import Dispatch, gencache
+from win32com.client import gencache
 import pythoncom, string, sys, datetime, builtins
 from functools import wraps
 import context

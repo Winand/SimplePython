@@ -101,28 +101,27 @@ threads = [] #stores thread refs
 class GenericThread(QtCore.QThread):
     def __init__(self, function, *args, client_self=None, onfinish=None, **kwargs):
         QtCore.QThread.__init__(self)
+        self.moveToThread(QtCore.QCoreApplication.instance().thread()) #finished_ is called
         self.client_self = prx(client_self, \
             atts={"sender": lambda s=client_self.sender(): s}) if client_self else None
         self.function, self.args, self.kwargs = function, args, kwargs
         self.finished.connect(self.finished_)
-#        if onfinish: self.finished.connect(self.onfinish)
+        self.onfinish = onfinish
         threads.append(self)
         self.start()
     def __del__(self):
-        print("__del__")
         if self.isRunning():
             print_def("Thread %s is still running. Waiting..." % self)
             self.wait() #block until finished
     def finished_(self):
-        print("finished_")
+        if self.onfinish: self.onfinish()
         del threads[threads.index(self)]
     def run(self):
         pythoncom.CoInitialize()
         if self.client_self:
             self.function(self.client_self, *self.args, **self.kwargs)
         else: self.function(*self.args, **self.kwargs)
-        print("end of run", threads)
-
+        
 def isMainThread():
     if not QtCore.QCoreApplication.instance():
         print_def("THD_UI ERROR (isMainThread): app instance is None!")

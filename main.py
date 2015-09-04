@@ -24,7 +24,7 @@ def macro_caller(macro, *args, **kwargs):
     pythoncom.CoInitialize()
     macro(*args, **kwargs)
     
-thd = None
+running_macro = None
     
 class Handler(socketserver.BaseRequestHandler):
     def sendString(self, s):
@@ -55,22 +55,16 @@ class Handler(socketserver.BaseRequestHandler):
                 print("Help on '%s' requested"%args["Macro"])
                 return macro.__doc__ or ""
             else:
-                print("Macro '%s' called... "%path[1], end="")
-                global thd
-                if thd and thd.isAlive():
-                    print("macro running")
-                else:
-                    thd=threading.Thread(target=macro_caller, args=(macro, args["Workbook"]))
-                    thd.start()
-#                GenericThread(lambda a: None, args["Workbook"])
-                print()
+                print("Macro '%s' called "%path[1])
+                global running_macro #Caller must 'Test' if server is 'OK' before this
+                running_macro = GenericThread(macro, args["Workbook"])
                 return "OK"
         elif msg == "Request":
             print("Macro list requested")
             return "|".join(getMacroList())
         elif msg == "Test":
-            print("Connection established")
-            return "Busy" if thd and thd.isAlive() else "OK"
+            print("Connection checked")
+            return "Busy" if running_macro and running_macro.isRunning() else "OK"
         else: print("Unknown message")
        
 watch, lock = {}, threading.RLock()
@@ -130,7 +124,7 @@ class SimplePython(QtGui.QWidget):
     def __init__(self):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
-        threading.Thread(target=lambda:(pythoncom.CoInitialize(), self.server.serve_forever())).start()
+        GenericThread(self.server.serve_forever)
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
         self.terminated.connect(self.btnExit_clicked)
 
@@ -156,7 +150,7 @@ class SimplePython(QtGui.QWidget):
         
     def btnExit_clicked(self):
         self.server.shutdown()
-        self.server.server_close()            
+        self.server.server_close()
         QtGui.qApp.quit()
     
     def closeEvent(self, event):
