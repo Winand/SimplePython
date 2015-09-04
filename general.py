@@ -13,7 +13,6 @@ from win32com.client import gencache
 import pythoncom, string, sys, datetime, builtins
 from functools import wraps
 import context
-from threaded_ui import Widget
 import cProfile, pstats, io #Profiling
               
 COL = {} #dict of column names
@@ -52,6 +51,7 @@ def macro(func):
     return wrapper
 
 context.macro = macro #so macro can be imported from context
+context.print = lambda *args, **kwargs: print(">", *args, **kwargs) #macro prints are marked with ">" sign
     
 def getOpenedFileObject(name):
     if name in comobj_cache:

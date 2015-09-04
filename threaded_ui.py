@@ -194,11 +194,17 @@ def addMenuItem(self, *args):
 def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, exec_=False, ontop=False, **kwargs):
     class Form_(Form):
         def __init__(self, flags, ui):
-            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
-            uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
+            inmain(super(Form, self).__init__, flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
+            inmain(uic.loadUi, str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
+            widgets, members = super(Form, self).__dict__, Form.__dict__
+            for i in widgets:
+                for m in [j for j in members if j.startswith(i+"_")]:
+                    signal = getattr(widgets[i], m[len(i)+1:], None)
+                    if signal: signal.connect(bind(members[m], self))
+                    else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
             if "__init__" in Form.__dict__:
                 super().__init__(*args, **kwargs)
-    form = inmain(Form_, flags, ui)
+    form = Form_(flags, ui)
 #    form.setWindowModality(1)
     if exec_:
         return inmain(form.exec), form.getResult()

@@ -64,7 +64,7 @@ class Handler(socketserver.BaseRequestHandler):
             return "|".join(getMacroList())
         elif msg == "Test":
             print("Connection checked")
-            return "Busy" if running_macro and running_macro.isRunning() else "OK"
+            return "Busy" if running_macro and running_macro.isRunning() else "OK" #GenericThread lives until replaced by a new one
         else: print("Unknown message")
        
 watch, lock = {}, threading.RLock()

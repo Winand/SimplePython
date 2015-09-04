@@ -7,6 +7,7 @@ Created on Thu Aug 27 10:45:29 2015
 
 import datetime, dateutil.parser, re
 from win32com.client import gencache
+from threaded_ui import Widget
 
 #context_app, context_wb, context_sh = None, None, None
 #macro = None
@@ -55,6 +56,10 @@ def Like(s, p):
     "Check string to match RegExp"
     return re.compile(p+r"\Z").match(s) is not None
     
+def UserForm(Base):
+    "Show user dialog"
+    return Widget(Base, ontop=True, exec_=True)
+    
 class OfficeApp():
     def __getattr__(self, name): return context_app.__getattr__(name)
     def __call__(self, *args, **kwargs): return context_app.__call__(*args, **kwargs)
@@ -63,7 +68,7 @@ Application = OfficeApp()
 App = Application #short for Application
 
 def context(doc, module):
-    excel_app_ctx = "Selection", "ActiveSheet", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect"
+    excel_app_ctx = "Selection", "ActiveSheet", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks"
     app_ctxs = {"Microsoft Excel": excel_app_ctx}
     global context_app
     context_app = doc.Parent
