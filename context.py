@@ -40,7 +40,7 @@ CreateObject = gencache.EnsureDispatch
 #Information
 def TypeName(obj):
 #    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
-    name = i.__class__.__name__ #Cache must be built
+    name = obj.__class__.__name__ #Cache must be built
     return name[name.startswith("_"):]
     
 #DateTime
@@ -58,7 +58,7 @@ def Like(s, p):
     
 def UserForm(Base):
     "Show user dialog"
-    return Widget(Base, ontop=True, exec_=True)
+    return Widget(Base, ontop=True)
     
 class OfficeApp():
     def __getattr__(self, name): return context_app.__getattr__(name)
@@ -68,7 +68,7 @@ Application = OfficeApp()
 App = Application #short for Application
 
 def context(doc, module):
-    excel_app_ctx = "Selection", "ActiveSheet", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks"
+    excel_app_ctx = "Selection", "ActiveSheet", "ActiveWorkbook", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks"
     app_ctxs = {"Microsoft Excel": excel_app_ctx}
     global context_app
     context_app = doc.Parent

@@ -6,6 +6,7 @@ Created on Thu Aug 20 13:21:53 2015
 """
     
 from context import *
+from general import COL
 import time
 
 @macro
@@ -72,7 +73,8 @@ def я_asrb_format_org():
 @macro
 def ttt():
     print("started")
-    time.sleep(2)
+    for i in range(20):
+        time.sleep(1)
     print("ended")
 #    App.ScreenUpdating = False
 #    for i in Selection:
@@ -100,4 +102,12 @@ def ttt2():
                 res = "%s.%s.%s%s"%(ch[0], ch[1], "20" if len(ch[2])==2 else "", ch[2])
             else: print(x, ch)
             i.Value = res
+            
+@macro
+def extract_number():
+    for i in Selection:
+        x = i.Value
+        i1 = x.index("(")
+        i2 = x.index(")")
+        Cells(i.Row, COL["D"]).Value = x[i1+1:i2]
             

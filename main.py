@@ -5,10 +5,11 @@ Created on Thu Aug 20 13:20:59 2015
 @author: Winand
 """
 from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom, print
+from general import run_lock, interrupt_lock
 import struct, json, pathlib
-import importlib
+import importlib, _thread
 import win32file, win32con, winnt
-from threaded_ui import QtApp, GenericThread
+from threaded_ui import QtApp, GenericWorker, invoke, QtCore, app
 
 import socketserver
 SHARED_SERVER_ADDR, SHARED_SERVER_PORT = "127.0.0.1", 50002
@@ -24,13 +25,12 @@ def macro_caller(macro, *args, **kwargs):
     pythoncom.CoInitialize()
     macro(*args, **kwargs)
     
-running_macro = None
-    
 class Handler(socketserver.BaseRequestHandler):
     def sendString(self, s):
-        msg = s.encode("utf-8")
-        self.request.sendall(struct.pack('i', len(msg)))
-        self.request.sendall(msg)
+        if s:
+            msg = s.encode("utf-8")
+            self.request.sendall(struct.pack('i', len(msg)))
+            self.request.sendall(msg)
         
     def sendByte(self, b):
         self.request.sendall(struct.pack('b', b))
@@ -54,18 +54,26 @@ class Handler(socketserver.BaseRequestHandler):
             elif msg == "Doc":
                 print("Help on '%s' requested"%args["Macro"])
                 return macro.__doc__ or ""
-            else:
+            else: #Caller must 'Test' if server is 'OK' before this
                 print("Macro '%s' called "%path[1])
-                global running_macro #Caller must 'Test' if server is 'OK' before this
-                running_macro = GenericThread(macro, args["Workbook"])
+                invoke(app().form.startMacro, macro, args["Workbook"])
                 return "OK"
         elif msg == "Request":
             print("Macro list requested")
             return "|".join(getMacroList())
         elif msg == "Test":
             print("Connection checked")
-            return "Busy" if running_macro and running_macro.isRunning() else "OK" #GenericThread lives until replaced by a new one
-        else: print("Unknown message")
+            return "Busy" if run_lock.locked() else "OK"
+        elif msg == "Interrupt":
+            print("Request to interrupt macro")
+            with interrupt_lock: #FIXME: It's possible to make several requests before macro is interrupted. Is it ok?
+                if run_lock.locked():
+                    _thread.interrupt_main()
+                else: return "Not busy"
+            return "OK"
+        else:
+            print("Unknown message")
+            return "Unknown"
        
 watch, lock = {}, threading.RLock()
 def initModuleLoader():
@@ -99,7 +107,6 @@ def initModuleLoader():
             print("Failed to update '%s' module: %s: %s"%(mod_name, type(e).__name__, e))
             del macro_tree[mod_name]
             
-            
     def reloader():
         while True:
             with lock:
@@ -119,12 +126,12 @@ def initModuleLoader():
             threading.Thread(target=reloader):
         i.daemon = True
         i.start()
-
+        
 class SimplePython(QtGui.QWidget):
     def __init__(self):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
-        GenericThread(self.server.serve_forever)
+        GenericWorker(self.server.serve_forever)
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
         self.terminated.connect(self.btnExit_clicked)
 
@@ -157,6 +164,10 @@ class SimplePython(QtGui.QWidget):
         if event.type() == event.Close:
             event.ignore()
             self.hide()
-        
-QtApp(SimplePython, ontop=True, hidden=True, #stdout="txtConsole", 
+            
+    @QtCore.pyqtSlot(object, object)
+    def startMacro(self, macro, wb):
+        macro(wb)
+      
+QtApp(SimplePython, ontop=True, hidden=True, stdout="txtConsole", 
       tray={"icon": QtGui.QStyle.SP_ArrowRight, "tip": "SimplePython Server"})

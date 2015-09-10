@@ -122,6 +122,34 @@ class GenericThread(QtCore.QThread):
             self.function(self.client_self, *self.args, **self.kwargs)
         else: self.function(*self.args, **self.kwargs)
         
+class GenericWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal()
+    def __init__(self, func, *args, **kwargs):
+        class EventLoop(QtCore.QRunnable):
+            def run(self_):
+                self.thread = QtCore.QThread.currentThread()
+                self.loop = QtCore.QEventLoop()
+                self.loop.exec()
+                self.finished.emit()
+                self.isFinished = True
+        class Runner(QtCore.QObject):
+            @QtCore.pyqtSlot(object, object, object)
+            def run(self_, func, args, kwargs):
+                pythoncom.CoInitialize()
+                func(*args, **kwargs)
+                self.loop.quit()
+        super().__init__()
+        self.isFinished = False
+        QtCore.QThreadPool.globalInstance().start(EventLoop())
+        while not getattr(self, "loop", None): pass #wait for thread to start
+        self.runner = Runner()
+        self.runner.moveToThread(self.thread) #move runner to QRunnable.run thread
+        invoke(self.runner.run, func, args, kwargs)
+    isRunning = lambda self: not self.isFinished
+        
+invoke = lambda member, *args: QtCore.QMetaObject.invokeMethod(member.__self__, \
+        member.__func__.__name__, *map(lambda _: QtCore.Q_ARG(object, _), args))
+        
 def isMainThread():
     if not QtCore.QCoreApplication.instance():
         print_def("THD_UI ERROR (isMainThread): app instance is None!")
@@ -139,77 +167,113 @@ def pyqtThreadedSlot(*args, **kwargs):
 def module_path(cls):
     "Get module folder path from class"
     return pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
-    
-class QApplication(QtGui.QApplication):
+        
+def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, ontop=False, kwargs={}):
+    class Form_(Form, object):
+        def __init__(self):
+            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
+            uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
+#            self.moveToThread(QtCore.QCoreApplication.instance().thread())
+            if stdout: redirect_stdout(getattr(self, stdout))
+            if tray:
+                self.addTrayIcon(tray["icon"], tray.get("tip", None))
+            self.autoConnectSignals()
+            self.terminated = QtGui.qApp.terminated
+            if "__init__" in Form.__dict__:
+#                f = super().__init__ if isMainThread() else bind(super().__init__, prx(self))
+#                f(*args, **kwargs)
+                super().__init__(*args, **kwargs)
+                
+        def autoConnectSignals(self):
+            widgets, members = super(Form, self).__dict__, Form.__dict__
+            for i in widgets:
+                for m in [j for j in members if j.startswith(i+"_")]:
+                    signal = getattr(widgets[i], m[len(i)+1:], None)
+                    if signal: signal.connect(bind(members[m], self))
+                    else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
+                    
+        def addMenuItem(self, *args):
+            for i in range(0, len(args), 2):
+                self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])
+            
+        def addTrayIcon(self, icon, tip=None):
+            f = QtGui.qApp.style().standardIcon \
+                if type(icon) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+            self.tray = QtGui.QSystemTrayIcon(f(icon))
+            if tip: self.tray.setToolTip(tip)
+            self.tray.setContextMenu(QtGui.QMenu())
+            self.tray.show()
+            self.tray.addMenuItem = bind(self.addMenuItem, self.tray)
+            QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
+        
+    return Form_()
+
+import win32process
+#Widget events are connected to appropriate defs - <widget>_<signal>()
+#To catch terminated signal (QProcess.terminate) connect it manually
+class QtApp(QtGui.QApplication):
     terminated = QtCore.pyqtSignal()
+    def __init__(self, Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
+        "Create new QApplication and specified window"
+        super().__init__(sys.argv)
+        try: win32gui.EnumWindows(self.findMsgDispatcher, self.applicationPid())
+        except: pass
+        self.form = WidgetFactory(Form, args, flags, ui, stdout, tray, ontop, kwargs)
+        if not hidden:
+            self.form.show()        
+        self.aboutToQuit.connect(self.aboutToQuit_)
+        global _app
+        _app = self
+        self.start()
+
+    def findMsgDispatcher(self, hwnd, lParam):
+        if lParam == win32process.GetWindowThreadProcessId(hwnd)[1]:
+            if win32gui.GetClassName(hwnd
+                        ).startswith("QEventDispatcherWin32_Internal_Widget"):
+                self.msg_dispatcher = hwnd
+                return False
+
+    def aboutToQuit_(self): #cleanup before exit
+        global _app
+        _app = None
+        if hasattr(self.form, "tray"):
+            del self.form.tray.addMenuItem
+
     def winEventFilter(self, message):
         if message.message == win32con.WM_DESTROY:
-            if win32gui.GetClassName(int(message.hwnd)
-                        ).startswith("QEventDispatcherWin32_Internal_Widget"):
+            if int(message.hwnd) == self.msg_dispatcher: #GUI thread dispatcher's been killed
                 print("Application terminated.")
                 self.terminated.emit()
         return QtGui.QApplication.winEventFilter(self, message)
+        
+    def start(self):
+        sys.exit(self.exec_())
+        
+def app():
+    return _app
 
-#Widget events are connected to appropriate defs - <widget>_<signal>()
-#To catch terminated signal (QProcess.terminate) connect it manually
-def QtApp(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
-    "Create new QApplication and specified window"
-    app = QApplication(sys.argv)
-    class Form_(Form):
-        def __init__(self, flags, ui):
-            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
-            uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
-            if stdout: redirect_stdout(getattr(self, stdout))
-            if type(tray) is dict:
-                f = app.style().standardIcon \
-                    if type(tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
-                self.tray = QtGui.QSystemTrayIcon(f(tray["icon"]))
-                if "tip" in tray:
-                    self.tray.setToolTip(tray["tip"])
-                self.tray.setContextMenu(QtGui.QMenu())
-                self.tray.show()
-                self.tray.addMenuItem = bind(addMenuItem, self.tray)
-                QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
-            widgets, members = super(Form, self).__dict__, Form.__dict__
-            for i in widgets:
-                for m in [j for j in members if j.startswith(i+"_")]:
-                    signal = getattr(widgets[i], m[len(i)+1:], None)
-                    if signal: signal.connect(bind(members[m], self))
-                    else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
-            self.terminated = app.terminated
-            if "__init__" in members:
-                super().__init__(*args, **kwargs)
-    form = Form_(flags, ui)
-    if not hidden:
-        form.show()
-    def aboutToQuit(): #cleanup before exit
-        del form.tray.addMenuItem
-    app.aboutToQuit.connect(aboutToQuit)
-    sys.exit(app.exec_())
-    
-def addMenuItem(self, *args):
-    for i in range(0, len(args), 2):
-        self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])
-    
-def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, exec_=False, ontop=False, **kwargs):
-    class Form_(Form):
-        def __init__(self, flags, ui):
-            inmain(super(Form, self).__init__, flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
-            inmain(uic.loadUi, str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
-            widgets, members = super(Form, self).__dict__, Form.__dict__
-            for i in widgets:
-                for m in [j for j in members if j.startswith(i+"_")]:
-                    signal = getattr(widgets[i], m[len(i)+1:], None)
-                    if signal: signal.connect(bind(members[m], self))
-                    else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
-            if "__init__" in Form.__dict__:
-                super().__init__(*args, **kwargs)
-    form = Form_(flags, ui)
-#    form.setWindowModality(1)
-    if exec_:
-        return inmain(form.exec), form.getResult()
-    else: return form
-
+def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kwargs):
+#    form = WidgetFactory(QtGui.QDialog, args, flags=flags, ui=flags, ontop=ontop, Receiver=Form, kwargs=kwargs)
+#    return inmain(form.exec()), getattr(form, "answer", None)
+    form = WidgetFactory(Form, args, flags=flags, ui=flags, ontop=ontop, kwargs=kwargs)
+##    form.setWindowModality(1)
+    if QtGui.QDialog in Form.__bases__:
+        inmain(form.open)
+        loop = QtCore.QEventLoop()
+        form.finished.connect(loop.quit)
+        loop.exec()
+##        print("!!!", isMainThread())
+        return (0, 0)
+#        return form.exec(), getattr(form, "answer", None)
+#    else:
+#        form.show()
+#        return form
+#        
+#class Dialog():
+#    def __init__(self):
+#        self.dialog = inmain(WidgetFactory, QtGui.QDialog, (), ontop=True)
+        
+        
 def redirect_stdout(wgt):
     """Redirect standard output to the specified widget"""
     classes = wgt.metaObject().className(), wgt.metaObject().superClass().className()

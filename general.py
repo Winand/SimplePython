@@ -10,10 +10,12 @@ macro_tree, modules = {}, {}
 comobj_cache = {}
 
 from win32com.client import gencache
-import pythoncom, string, sys, datetime, builtins
+import pythoncom, string, sys, datetime, builtins, threading
 from functools import wraps
 import context
 import cProfile, pstats, io #Profiling
+
+run_lock, interrupt_lock = threading.Lock(), threading.Lock()
               
 COL = {} #dict of column names
 for i in string.ascii_uppercase:
@@ -39,7 +41,11 @@ def macro(func):
             context.context(doc_obj, modules[module])
             try:
 #                with Profile():        
-                return func()
+                with run_lock:
+                    return func()
+                    while interrupt_lock.locked(): pass
+            except KeyboardInterrupt:
+                print("Macro '%s' interrupted"%func.__name__)
             except Exception as e:
                 frame = sys.exc_info()[2].tb_next
                 if not frame: frame = sys.exc_info()[2]
