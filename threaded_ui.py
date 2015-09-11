@@ -96,31 +96,6 @@ class prx():
     def __setattr__(self, name, value): return setattr(self.client, name, value)
     def __str__(self): return "<Proxied %s>" % self.client
     def __eq__(self, other): return self.client is other.client
-
-threads = [] #stores thread refs
-class GenericThread(QtCore.QThread):
-    def __init__(self, function, *args, client_self=None, onfinish=None, **kwargs):
-        QtCore.QThread.__init__(self)
-        self.moveToThread(QtCore.QCoreApplication.instance().thread()) #finished_ is called
-        self.client_self = prx(client_self, \
-            atts={"sender": lambda s=client_self.sender(): s}) if client_self else None
-        self.function, self.args, self.kwargs = function, args, kwargs
-        self.finished.connect(self.finished_)
-        self.onfinish = onfinish
-        threads.append(self)
-        self.start()
-    def __del__(self):
-        if self.isRunning():
-            print_def("Thread %s is still running. Waiting..." % self)
-            self.wait() #block until finished
-    def finished_(self):
-        if self.onfinish: self.onfinish()
-        del threads[threads.index(self)]
-    def run(self):
-        pythoncom.CoInitialize()
-        if self.client_self:
-            self.function(self.client_self, *self.args, **self.kwargs)
-        else: self.function(*self.args, **self.kwargs)
         
 class GenericWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal()
@@ -144,6 +119,9 @@ class GenericWorker(QtCore.QObject):
         while not getattr(self, "loop", None): pass #wait for thread to start
         self.runner = Runner()
         self.runner.moveToThread(self.thread) #move runner to QRunnable.run thread
+        if args and hasattr(args[0], "sender"): #if 1st arg has /sender/ assume it's Qt widget
+            args = list(args)
+            args[0] = prx(args[0], atts={"sender": lambda s=args[0].sender(): s})
         invoke(self.runner.run, func, args, kwargs)
     isRunning = lambda self: not self.isFinished
         
@@ -160,7 +138,7 @@ def pyqtThreadedSlot(*args, **kwargs):
     def threaded_int(func):
         @QtCore.pyqtSlot(*args, name=func.__name__, **kwargs)
         def wrap_func(self, *args1, **kwargs1):
-            GenericThread(func, *args1, client_self=self, **kwargs1)
+            GenericWorker(func, self, *args1, **kwargs1)
         return wrap_func
     return threaded_int
     
@@ -208,7 +186,7 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
         
     return Form_()
 
-import win32process
+import win32process, signal
 #Widget events are connected to appropriate defs - <widget>_<signal>()
 #To catch terminated signal (QProcess.terminate) connect it manually
 class QtApp(QtGui.QApplication):
@@ -224,6 +202,7 @@ class QtApp(QtGui.QApplication):
         self.aboutToQuit.connect(self.aboutToQuit_)
         global _app
         _app = self
+        signal.signal(signal.SIGINT, lambda *args: print("SIGINT outside Python")) #handle KeyboardInterrupt in Qt
         self.start()
 
     def findMsgDispatcher(self, hwnd, lParam):
@@ -250,29 +229,21 @@ class QtApp(QtGui.QApplication):
         sys.exit(self.exec_())
         
 def app():
+    "app() is a current qApp, app().form is a main widget created by QtApp"
     return _app
 
-def Widget(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kwargs):
-#    form = WidgetFactory(QtGui.QDialog, args, flags=flags, ui=flags, ontop=ontop, Receiver=Form, kwargs=kwargs)
-#    return inmain(form.exec()), getattr(form, "answer", None)
+def Dialog(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kwargs):
+    "Dialog.accept(value) - close dialog and return /value/"
+    def accept(self, ret):
+        super(Form, self).accept()
+        self._answer = ret
+    if QtGui.QDialog not in Form.__bases__: #inherit from QDialog if needed
+        #http://stackoverflow.com/questions/9539052
+        Form = type(Form.__name__, (QtGui.QDialog,)+Form.__bases__, Form.__dict__.copy())
     form = WidgetFactory(Form, args, flags=flags, ui=flags, ontop=ontop, kwargs=kwargs)
-##    form.setWindowModality(1)
-    if QtGui.QDialog in Form.__bases__:
-        inmain(form.open)
-        loop = QtCore.QEventLoop()
-        form.finished.connect(loop.quit)
-        loop.exec()
-##        print("!!!", isMainThread())
-        return (0, 0)
-#        return form.exec(), getattr(form, "answer", None)
-#    else:
-#        form.show()
-#        return form
-#        
-#class Dialog():
-#    def __init__(self):
-#        self.dialog = inmain(WidgetFactory, QtGui.QDialog, (), ontop=True)
-        
+    form.accept = bind(accept, form)
+    form.exec()
+    return getattr(form, "_answer", None)
         
 def redirect_stdout(wgt):
     """Redirect standard output to the specified widget"""
