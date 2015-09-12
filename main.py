@@ -117,6 +117,7 @@ def initModuleLoader():
                     elif watch[i] == "del":
                         unload(i)
                         print("Module '%s' unloaded"%i)
+                    invoke(app().form.updateMacroTree)
                 watch.clear()
             time.sleep(1)
     for i in [f for f in pathlib.Path(src_path).iterdir() if f.is_file() and
@@ -143,7 +144,8 @@ class SimplePython(QtGui.QWidget):
     def btnClear_clicked(self):
         self.txtConsole.clear()
         
-    def btnUpdate_clicked(self):
+    @QtCore.pyqtSlot()
+    def updateMacroTree(self):
 #        d=QtGui.QDialog()
 #        d.setWindowModality(1)
 #        d.exec()
