@@ -7,7 +7,7 @@ Created on Thu Aug 27 10:45:29 2015
 
 import datetime, dateutil.parser, re
 from win32com.client import gencache
-from threaded_ui import Dialog, QtGui
+from threaded_ui import Dialog, QtGui, QtCore
 
 #context_app, context_wb, context_sh = None, None, None
 #macro = None
@@ -44,10 +44,14 @@ def TypeName(obj):
 #    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
     name = obj.__class__.__name__ #Cache must be built
     return name[name.startswith("_"):]
+
+def RGB(Red, Green, Blue):
+    return Blue<<16 | Green<<8 | Red
     
 #DateTime
 def DateValue(s):
     "Returns datetime.date from string or pywintypes.datetime"
+    if type(s) is not str: s = s.Value #perhaps it's Range object
     try:
         return dateutil.parser.parse(s.strip()).date() if type(s) is str \
             else datetime.date(s.year, s.month, s.day)
@@ -74,10 +78,10 @@ __bt = {vbOKCancel: _.Ok|_.Cancel, vbYesNo: _.Yes|_.No, vbRetryCancel: _.Retry|_
         vbYesNoCancel: _.Yes|_.No|_.Cancel, vbAbortRetryIgnore: _.Abort|_.Retry|_.Ignore}   
 __retl = {_.Abort: vbAbort, _.Cancel: vbCancel, _.Ignore: vbIgnore, _.No: vbNo,
             _.Ok: vbOK, _.Retry: vbRetry, _.Yes: vbYes}        
-def MsgBox(Prompt, Buttons=None, Title=None):
-    ic = __ic.get(Buttons&0xf0, None)
-    bt = __bt.get(Buttons&0xf, None)
-    return __retl.get(_(ic, Title, Prompt, bt).exec(), None)
+def MsgBox(Prompt, Buttons=0, Title="SimplePython"):
+    ic = __ic.get(Buttons&0xf0, _.NoIcon)
+    bt = __bt.get(Buttons&0xf, _.Ok)
+    return __retl.get(_(ic, Title, Prompt, bt, flags=QtCore.Qt.WindowStaysOnTopHint).exec(), None)
     
 class OfficeApp():
     def __getattr__(self, name): return context_app.__getattr__(name)

@@ -2,6 +2,7 @@ __author__ = 'МакаровАС'
 
 from PyQt4 import QtCore, QtGui, uic
 import sys, queue, pythoncom, types, pathlib, win32con, win32gui
+import win32process, signal
 
 DEBUG = False
 print_def = lambda *args: not DEBUG or print(*args, file=sys.__stdout__)
@@ -146,20 +147,23 @@ def module_path(cls):
     "Get module folder path from class"
     return pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
         
+#Widget events are connected to appropriate defs - <widget>_<signal>()
+#To catch terminated signal (QProcess.terminate) connect it manually
 def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, ontop=False, kwargs={}):
     class Form_(Form, object):
         def __init__(self):
             super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
             uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
-#            self.moveToThread(QtCore.QCoreApplication.instance().thread())
             if stdout: redirect_stdout(getattr(self, stdout))
             if tray:
-                self.addTrayIcon(tray["icon"], tray.get("tip", None))
+                f = QtGui.qApp.style().standardIcon \
+                    if type(tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+                self.addTrayIcon(f(tray["icon"]), tray.get("tip", None))
+                if self.windowIcon().isNull(): #Add icon from tray
+                    self.setWindowIcon(f(tray["icon"]))
             self.autoConnectSignals()
             self.terminated = QtGui.qApp.terminated
             if "__init__" in Form.__dict__:
-#                f = super().__init__ if isMainThread() else bind(super().__init__, prx(self))
-#                f(*args, **kwargs)
                 super().__init__(*args, **kwargs)
                 
         def autoConnectSignals(self):
@@ -175,9 +179,7 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
                 self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])
             
         def addTrayIcon(self, icon, tip=None):
-            f = QtGui.qApp.style().standardIcon \
-                if type(icon) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
-            self.tray = QtGui.QSystemTrayIcon(f(icon))
+            self.tray = QtGui.QSystemTrayIcon(icon)
             if tip: self.tray.setToolTip(tip)
             self.tray.setContextMenu(QtGui.QMenu())
             self.tray.show()
@@ -186,9 +188,6 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
         
     return Form_()
 
-import win32process, signal
-#Widget events are connected to appropriate defs - <widget>_<signal>()
-#To catch terminated signal (QProcess.terminate) connect it manually
 class QtApp(QtGui.QApplication):
     terminated = QtCore.pyqtSignal()
     def __init__(self, Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):

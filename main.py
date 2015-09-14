@@ -127,6 +127,20 @@ def initModuleLoader():
             threading.Thread(target=reloader):
         i.daemon = True
         i.start()
+
+class TempTrayIcon:
+    "Temporary changes tray icon"
+    def __init__(self, systray, tempicon):
+        f = QtGui.qApp.style().standardIcon \
+            if type(tempicon) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+        self.tray = systray
+        self.oldicon, self.newicon = self.tray.icon(), f(tempicon)
+        
+    def __enter__(self):
+        self.tray.setIcon(self.newicon)
+        
+    def __exit__(self, *args):
+        self.tray.setIcon(self.oldicon)
         
 class SimplePython(QtGui.QWidget):
     def __init__(self):
@@ -169,7 +183,9 @@ class SimplePython(QtGui.QWidget):
             
     @QtCore.pyqtSlot(object, object)
     def startMacro(self, macro, wb):
-        macro(wb)
+        with TempTrayIcon(app().form.tray,
+                          QtGui.QStyle.SP_ArrowRight):
+            macro(wb)
       
 QtApp(SimplePython, ontop=True, hidden=True, stdout="txtConsole", 
-      tray={"icon": QtGui.QStyle.SP_ArrowRight, "tip": "SimplePython Server"})
+      tray={"icon": r"res\icon.png", "tip": "SimplePython Server"})
