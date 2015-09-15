@@ -17,9 +17,6 @@ def ExtractValues(func):
         return func(*args, **kwargs)
     return func_wrapper
 
-#context_app, context_wb, context_sh = None, None, None
-#macro = None
-
 #EXCEL
 #Constants
 xlTopToBottom = 1
@@ -49,7 +46,6 @@ CreateObject = gencache.EnsureDispatch
 
 #Information
 def TypeName(obj):
-#    name = obj._oleobj_.GetTypeInfo().GetDocumentation(-1)[0]
     name = obj.__class__.__name__ #Cache must be built
     return name[name.startswith("_"):]
 
@@ -79,7 +75,6 @@ def UserForm(Base):
 def short(v):
     "Convert int to signed short"
     return v-0x10000 if v>>15 else v
-#    return ctypes.c_short(v).value
     
 _ = QtGui.QMessageBox
 __ic = {vbQuestion: _.Question, vbInformation: _.Information,
@@ -92,21 +87,16 @@ def MsgBox(Prompt, Buttons=0, Title="SimplePython"):
     ic = __ic.get(Buttons&0xf0, _.NoIcon)
     bt = __bt.get(Buttons&0xf, _.Ok)
     return __retl.get(_(ic, Title, Prompt, bt, flags=QtCore.Qt.WindowStaysOnTopHint).exec(), None)
-    
-class OfficeApp():
-    def __getattr__(self, name): return context_app.__getattr__(name)
-    def __call__(self, *args, **kwargs): return context_app.__call__(*args, **kwargs)
-    def __setattr__(self, name, value): return context_app.__setattr__(name, value)
-Application = OfficeApp()
-App = Application #short for Application
 
 def context(doc, module):
+    "Sets needed global variables to a /module/, sets App variable to itself"
     excel_app_ctx = "Selection", "ActiveSheet", "ActiveWorkbook", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks"
     app_ctxs = {"Microsoft Excel": excel_app_ctx}
-    global context_app
-    context_app = doc.Parent
-    app_ctx = app_ctxs[context_app.Name]
+    global App
+    App = doc.Parent
+    app_ctx = app_ctxs[App.Name]
     for i in app_ctx:
-        try: attr = getattr(context_app, i, None)
+        try: attr = getattr(App, i, None)
         except: attr = None
         setattr(module, i, attr)
+    setattr(module, "App", App); setattr(module, "Application", App)

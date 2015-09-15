@@ -13,6 +13,7 @@ import time
 def unmerge_and_fill():
     "разгруппировать все ячейки в Selection и ячейки каждой \
     бывшей группы заполнить значениями из их первых ячеек"
+    App.ScreenUpdating = False
     if TypeName(Selection) != "Range": return
     elif Selection.Cells.Count == 1: return
     for cell in Intersect(Selection, ActiveSheet.UsedRange).Cells:
@@ -110,4 +111,13 @@ def extract_number():
         i1 = x.index("(")
         i2 = x.index(")")
         Cells(i.Row, COL["D"]).Value = x[i1+1:i2]
+        
+@macro
+def EXCEPTION():
+    print(TypeName(App))
+    ropoldsfo()
+#    try:
+#    raise Exception
+#    except:
+#        print("except")
             

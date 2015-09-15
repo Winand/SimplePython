@@ -14,7 +14,7 @@ import pythoncom, string, sys, datetime, builtins, threading
 from functools import wraps
 import context
 import cProfile, pstats, io #Profiling
-from threaded_ui import app, isConsoleApp
+from threaded_ui import app
 
 run_lock, interrupt_lock = threading.Lock(), threading.Lock()
               
@@ -52,6 +52,7 @@ def macro(func):
                 if not frame: frame = sys.exc_info()[2]
                 print("Exception in macro '%s': %s[%s:%d] %s" %
                     (func.__name__, type(e).__name__, module, frame.tb_lineno, e))
+                showConsole() #Show exception to user
             finally:
                 try: context.App.ScreenUpdating = True #Turn back updating!
                 except: print("Failed to turn on screen updating!")

@@ -193,5 +193,5 @@ class SimplePython(QtGui.QWidget):
             macro(wb)
             
 stdout = None if isConsoleApp() else "txtConsole" #redirect output if no console
-QtApp(SimplePython, ontop=True, hidden=True, stdout=stdout, 
+QtApp(SimplePython, ontop=False, hidden=True, stdout=stdout, 
       tray={"icon": str(appPath.joinpath(r"res\icon.png")), "tip": "SimplePython Server"})

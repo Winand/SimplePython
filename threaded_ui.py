@@ -149,20 +149,16 @@ def module_path(cls):
         
 #Widget events are connected to appropriate defs - <widget>_<signal>()
 #To catch terminated signal (QProcess.terminate) connect it manually
-def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, ontop=False, kwargs={}):
+def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, before_init=None, ontop=False, kwargs={}):
     class Form_(Form, object):
         def __init__(self):
-            super(Form, self).__init__(flags=flags|(QtCore.Qt.WindowStaysOnTopHint if ontop else 0))
+            super(Form, self).__init__(flags=(QtCore.Qt.WindowStaysOnTopHint if ontop else 0)|flags)
             uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
             if stdout: redirect_stdout(getattr(self, stdout))
-            if tray:
-                f = QtGui.qApp.style().standardIcon \
-                    if type(tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
-                self.addTrayIcon(f(tray["icon"]), tray.get("tip", None))
-                if self.windowIcon().isNull(): #Add icon from tray
-                    self.setWindowIcon(f(tray["icon"]))
-            self.autoConnectSignals()
             self.terminated = QtGui.qApp.terminated
+            if before_init:
+                before_init(self)
+            self.autoConnectSignals()
             if "__init__" in Form.__dict__:
                 super().__init__(*args, **kwargs)
                 
@@ -173,18 +169,6 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
                     signal = getattr(widgets[i], m[len(i)+1:], None)
                     if signal: signal.connect(bind(members[m], self))
                     else: print("Signal '%s' of '%s' not found" % (m[len(i)+1:], i))
-                    
-        def addMenuItem(self, *args):
-            for i in range(0, len(args), 2):
-                self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])
-            
-        def addTrayIcon(self, icon, tip=None):
-            self.tray = QtGui.QSystemTrayIcon(icon)
-            if tip: self.tray.setToolTip(tip)
-            self.tray.setContextMenu(QtGui.QMenu())
-            self.tray.show()
-            self.tray.addMenuItem = bind(self.addMenuItem, self.tray)
-            QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
         
     return Form_()
 
@@ -195,10 +179,10 @@ class QtApp(QtGui.QApplication):
         super().__init__(sys.argv)
         try: win32gui.EnumWindows(self.findMsgDispatcher, self.applicationPid())
         except: pass
-        self.form = WidgetFactory(Form, args, flags, ui, stdout, tray, ontop, kwargs)
+        self.tray = tray
+        self.form = WidgetFactory(Form, args, flags, ui, stdout, self.setupTrayIcon, ontop, kwargs)
         if not hidden:
-            self.form.show()        
-        self.aboutToQuit.connect(self.aboutToQuit_)
+            self.form.show()
         global _app
         _app = self
         def sigint(*args): raise KeyboardInterrupt
@@ -212,12 +196,6 @@ class QtApp(QtGui.QApplication):
                 self.msg_dispatcher = hwnd
                 return False
 
-    def aboutToQuit_(self): #cleanup before exit
-        global _app
-        _app = None
-        if hasattr(self.form, "tray"):
-            del self.form.tray.addMenuItem
-
     def winEventFilter(self, message):
         if message.message == win32con.WM_DESTROY:
             if int(message.hwnd) == self.msg_dispatcher: #GUI thread dispatcher's been killed
@@ -228,6 +206,27 @@ class QtApp(QtGui.QApplication):
     def start(self):
         sys.exit(self.exec_())
         
+    def setupTrayIcon(self, form):
+        if self.tray:
+            f = QtGui.qApp.style().standardIcon \
+                if type(self.tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+            self.addTrayIcon(form, f(self.tray["icon"]), self.tray.get("tip", None))
+            if form.windowIcon().isNull(): #Add icon from tray
+                form.setWindowIcon(f(self.tray["icon"]))
+                
+    def addTrayIcon(self, form, icon, tip=None):
+        #Tray icon parent is VERY important: http://python.6.x6.nabble.com/QSystemTrayIcon-still-crashed-app-PyQt4-4-9-1-td4976041.html
+        form.tray = QtGui.QSystemTrayIcon(icon, form)
+        if tip: form.tray.setToolTip(tip)
+        form.tray.setContextMenu(QtGui.QMenu(form)) #Qt doc: "The system tray icon does not take ownership of the menu"
+        form.tray.show()
+        form.tray.addMenuItem = bind(self.addMenuItem, form.tray)
+        QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
+                    
+    def addMenuItem(self, *args):
+        for i in range(0, len(args), 2):
+            self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])  
+            
 def app():
     "app() is a current qApp, app().form is a main widget created by QtApp"
     return _app
