@@ -201,7 +201,8 @@ class QtApp(QtGui.QApplication):
         self.aboutToQuit.connect(self.aboutToQuit_)
         global _app
         _app = self
-        signal.signal(signal.SIGINT, lambda *args: print("SIGINT outside Python")) #handle KeyboardInterrupt in Qt
+        def sigint(*args): raise KeyboardInterrupt
+        signal.signal(signal.SIGINT, sigint) #pass all KeyboardInterrupt to Python code
         self.start()
 
     def findMsgDispatcher(self, hwnd, lParam):
@@ -230,6 +231,9 @@ class QtApp(QtGui.QApplication):
 def app():
     "app() is a current qApp, app().form is a main widget created by QtApp"
     return _app
+    
+def isConsoleApp():
+    return not pathlib.Path(sys.executable).stem == "pythonw"
 
 def Dialog(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kwargs):
     "Dialog.accept(value) - close dialog and return /value/"
@@ -251,11 +255,11 @@ def redirect_stdout(wgt):
         def write(self, txt):
             self.moveCursor(QtGui.QTextCursor.End)
             self.insertPlainText(txt)
-        wgt.write = bind(write, wgt)
-        wgt.flush = bind(lambda self: None, wgt)
     else:
         print_def("THD_UI ERROR (redirect_stdout): cannot redirect output to unsupported "+classes[0])
         return
+    wgt.write = bind(write, wgt)
+    wgt.flush = bind(lambda self: None, wgt)
     parent = wgt.parent()
     def closeEvent(e, orig_ce=parent.closeEvent):
         sys.stdout = sys.__stdout__

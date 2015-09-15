@@ -14,6 +14,7 @@ import pythoncom, string, sys, datetime, builtins, threading
 from functools import wraps
 import context
 import cProfile, pstats, io #Profiling
+from threaded_ui import app, isConsoleApp
 
 run_lock, interrupt_lock = threading.Lock(), threading.Lock()
               
@@ -52,7 +53,8 @@ def macro(func):
                 print("Exception in macro '%s': %s[%s:%d] %s" %
                     (func.__name__, type(e).__name__, module, frame.tb_lineno, e))
             finally:
-                context.App.ScreenUpdating = True #Turn back updating!
+                try: context.App.ScreenUpdating = True #Turn back updating!
+                except: print("Failed to turn on screen updating!")
         else: print("Opened document '%s' not found"%doc)
     return wrapper
 
@@ -86,3 +88,6 @@ class Profile():
         s = io.StringIO()
         pstats.Stats(self.pr, stream=s).sort_stats('cumulative').print_stats()
         print(s.getvalue())
+        
+def showConsole():
+    app().form.showWindow(console=True)

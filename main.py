@@ -9,14 +9,12 @@ from general import run_lock, interrupt_lock
 import struct, json, pathlib
 import importlib, _thread
 import win32file, win32con, winnt
-from threaded_ui import QtApp, GenericWorker, invoke, QtCore, app
+from threaded_ui import QtApp, invoke, QtCore, QtGui, app, isConsoleApp
+import sys, threading, time
 
 import socketserver
 SHARED_SERVER_ADDR, SHARED_SERVER_PORT = "127.0.0.1", 50002
 appPath = pathlib.Path(__file__).absolute().parent
-
-import sys, threading, time
-from PyQt4 import QtGui
             
 class TCPServer(socketserver.TCPServer):
     allow_reuse_address = True
@@ -75,7 +73,7 @@ class Handler(socketserver.BaseRequestHandler):
             print("Unknown message")
             return "Unknown"
        
-watch, lock = {}, threading.RLock()
+watch, loader_lock = {}, threading.RLock()
 def initModuleLoader():
     src_path = str(appPath.joinpath("source"))
     def watcher():
@@ -90,7 +88,7 @@ def initModuleLoader():
                                             win32con.FILE_NOTIFY_CHANGE_LAST_WRITE):
                 filename = pathlib.Path(file)
                 if filename.suffix == ".py" and not filename.stem.startswith("__"):
-                    with lock:
+                    with loader_lock:
                         watch[filename.stem] = actions[action]
     def unload(mod_name):
         if mod_name in modules:
@@ -109,7 +107,7 @@ def initModuleLoader():
             
     def reloader():
         while True:
-            with lock:
+            with loader_lock:
                 for i in watch:
                     if watch[i] == "add":
                         if i in modules: unload(i)
@@ -146,14 +144,21 @@ class SimplePython(QtGui.QWidget):
     def __init__(self):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
-        GenericWorker(self.server.serve_forever)
+        threading.Thread(target=self.server.serve_forever).start()
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
         self.terminated.connect(self.btnExit_clicked)
 
     def tray_activated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Trigger:
-            self.show()
-            self.activateWindow()
+            self.showWindow()
+            
+    def showWindow(self, console=False):
+        if console and isConsoleApp():
+            return
+        self.show()
+        self.activateWindow()
+        if console:
+            self.tabs.setCurrentIndex(0)
             
     def btnClear_clicked(self):
         self.txtConsole.clear()
@@ -186,6 +191,7 @@ class SimplePython(QtGui.QWidget):
         with TempTrayIcon(app().form.tray,
                           QtGui.QStyle.SP_ArrowRight):
             macro(wb)
-      
-QtApp(SimplePython, ontop=True, hidden=True, stdout="txtConsole", 
-      tray={"icon": r"res\icon.png", "tip": "SimplePython Server"})
+            
+stdout = None if isConsoleApp() else "txtConsole" #redirect output if no console
+QtApp(SimplePython, ontop=True, hidden=True, stdout=stdout, 
+      tray={"icon": str(appPath.joinpath(r"res\icon.png")), "tip": "SimplePython Server"})

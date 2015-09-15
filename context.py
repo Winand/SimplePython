@@ -9,6 +9,14 @@ import datetime, dateutil.parser, re
 from win32com.client import gencache
 from threaded_ui import Dialog, QtGui, QtCore
 
+def ExtractValues(func):
+    "Decorator: find arguments with Value attribute and replace them with values"
+    def func_wrapper(*args, **kwargs):
+        args = [i.Value if hasattr(i, "Value") else i for i in args]
+        kwargs = {i: kwargs[i].Value if hasattr(kwargs[i], "Value") else kwargs[i] for i in kwargs}
+        return func(*args, **kwargs)
+    return func_wrapper
+
 #context_app, context_wb, context_sh = None, None, None
 #macro = None
 
@@ -45,19 +53,21 @@ def TypeName(obj):
     name = obj.__class__.__name__ #Cache must be built
     return name[name.startswith("_"):]
 
+@ExtractValues
 def RGB(Red, Green, Blue):
     return Blue<<16 | Green<<8 | Red
     
 #DateTime
+@ExtractValues
 def DateValue(s):
     "Returns datetime.date from string or pywintypes.datetime"
-    if type(s) is not str: s = s.Value #perhaps it's Range object
     try:
         return dateutil.parser.parse(s.strip()).date() if type(s) is str \
             else datetime.date(s.year, s.month, s.day)
     except: pass
 
 #VBA
+@ExtractValues
 def Like(s, p):
     "Check string to match RegExp"
     return re.compile(p+r"\Z").match(s) is not None
