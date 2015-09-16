@@ -17,22 +17,15 @@
    <item row="0" column="0" colspan="2">
     <widget class="QTabWidget" name="tabs">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="tabConsole">
       <attribute name="title">
        <string>Console</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="1" column="2">
-        <widget class="QPushButton" name="btnClear">
-         <property name="text">
-          <string>Clear</string>
-         </property>
-        </widget>
-       </item>
        <item row="1" column="0">
-        <spacer name="horizontalSpacer_3">
+        <spacer name="horizontalSpacer_2">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
          </property>
@@ -44,7 +37,14 @@
          </property>
         </spacer>
        </item>
-       <item row="0" column="0" colspan="3">
+       <item row="1" column="1">
+        <widget class="QPushButton" name="btnClear">
+         <property name="text">
+          <string>Clear</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0" colspan="2">
         <widget class="QPlainTextEdit" name="txtConsole">
          <property name="readOnly">
           <bool>true</bool>
@@ -58,9 +58,21 @@
        <string>Structure</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_3">
-       <item row="0" column="0" colspan="2">
-        <widget class="QPlainTextEdit" name="txtModules">
-         <property name="readOnly">
+       <item row="0" column="0">
+        <widget class="QTreeWidget" name="twModules">
+         <column>
+          <property name="text">
+           <string notr="true">1</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="lblMacroInfo">
+         <property name="text">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="wordWrap">
           <bool>true</bool>
          </property>
         </widget>

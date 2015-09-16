@@ -26,7 +26,7 @@ def fitFactor(ws, hs, wd, hd):
     f1, f2 = wd / ws, hd / hs
     return f2 if f2 < f1 else f1
             
-@macro
+@macro(Excel)
 def ЭкспортВПрезентацию():
     SLIDE_MARGIN = 8
     pp = CreateObject("PowerPoint.Application")
@@ -90,7 +90,7 @@ def ttt():
 #                print(x, ch)
 #                res = x
 #            i.Value = res
-@macro
+@macro(Word)
 def ttt2():
     App.ScreenUpdating=False
     for i in Selection:
@@ -112,12 +112,7 @@ def extract_number():
         i2 = x.index(")")
         Cells(i.Row, COL["D"]).Value = x[i1+1:i2]
         
-@macro
+@macro(Excel)
 def EXCEPTION():
-    print(TypeName(App))
-    ropoldsfo()
-#    try:
-#    raise Exception
-#    except:
-#        print("except")
+    while 1: pass
             

@@ -3,6 +3,7 @@ __author__ = 'МакаровАС'
 from PyQt4 import QtCore, QtGui, uic
 import sys, queue, pythoncom, types, pathlib, win32con, win32gui
 import win32process, signal
+import __main__
 
 DEBUG = False
 print_def = lambda *args: not DEBUG or print(*args, file=sys.__stdout__)
@@ -125,9 +126,13 @@ class GenericWorker(QtCore.QObject):
             args[0] = prx(args[0], atts={"sender": lambda s=args[0].sender(): s})
         invoke(self.runner.run, func, args, kwargs)
     isRunning = lambda self: not self.isFinished
-        
-invoke = lambda member, *args: QtCore.QMetaObject.invokeMethod(member.__self__, \
-        member.__func__.__name__, *map(lambda _: QtCore.Q_ARG(object, _), args))
+
+class Invoker():
+    def invoke(self, member, *args, conn=QtCore.Qt.AutoConnection):
+        return QtCore.QMetaObject.invokeMethod(member.__self__, member.__func__.__name__, \
+            conn, *map(lambda _: QtCore.Q_ARG(object, _), args))
+    wait = lambda self, member, *args: self.invoke(member, *args, conn=QtCore.Qt.BlockingQueuedConnection) 
+invoker = Invoker()
         
 def isMainThread():
     if not QtCore.QCoreApplication.instance():
@@ -179,15 +184,16 @@ class QtApp(QtGui.QApplication):
         super().__init__(sys.argv)
         try: win32gui.EnumWindows(self.findMsgDispatcher, self.applicationPid())
         except: pass
-        self.tray = tray
+        global _app
+        _app = self
+        self.path = pathlib.Path(__main__.__file__).absolute().parent #Application path
+        self._tray = tray
         self.form = WidgetFactory(Form, args, flags, ui, stdout, self.setupTrayIcon, ontop, kwargs)
         if not hidden:
             self.form.show()
-        global _app
-        _app = self
         def sigint(*args): raise KeyboardInterrupt
         signal.signal(signal.SIGINT, sigint) #pass all KeyboardInterrupt to Python code
-        self.start()
+        sys.exit(self.exec_())
 
     def findMsgDispatcher(self, hwnd, lParam):
         if lParam == win32process.GetWindowThreadProcessId(hwnd)[1]:
@@ -203,16 +209,13 @@ class QtApp(QtGui.QApplication):
                 self.terminated.emit()
         return QtGui.QApplication.winEventFilter(self, message)
         
-    def start(self):
-        sys.exit(self.exec_())
-        
     def setupTrayIcon(self, form):
-        if self.tray:
+        if self._tray:
             f = QtGui.qApp.style().standardIcon \
-                if type(self.tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
-            self.addTrayIcon(form, f(self.tray["icon"]), self.tray.get("tip", None))
+                if type(self._tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+            self.addTrayIcon(form, f(self._tray["icon"]), self._tray.get("tip", None))
             if form.windowIcon().isNull(): #Add icon from tray
-                form.setWindowIcon(f(self.tray["icon"]))
+                form.setWindowIcon(f(self._tray["icon"]))
                 
     def addTrayIcon(self, form, icon, tip=None):
         #Tray icon parent is VERY important: http://python.6.x6.nabble.com/QSystemTrayIcon-still-crashed-app-PyQt4-4-9-1-td4976041.html
@@ -226,9 +229,11 @@ class QtApp(QtGui.QApplication):
     def addMenuItem(self, *args):
         for i in range(0, len(args), 2):
             self.contextMenu().addAction(args[i]).triggered.connect(args[i+1])  
-            
+        
+_app = None
 def app():
     "app() is a current qApp, app().form is a main widget created by QtApp"
+    if _app is None: print("app: Call QtApp first")
     return _app
     
 def isConsoleApp():

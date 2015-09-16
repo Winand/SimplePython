@@ -16,6 +16,11 @@ def ExtractValues(func):
         kwargs = {i: kwargs[i].Value if hasattr(kwargs[i], "Value") else kwargs[i] for i in kwargs}
         return func(*args, **kwargs)
     return func_wrapper
+    
+Excel, Word, PowerPoint = "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint" #Application.Name
+app_ctxs = {
+    Excel: ("Selection", "ActiveSheet", "ActiveWorkbook", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks")
+}
 
 #EXCEL
 #Constants
@@ -90,8 +95,6 @@ def MsgBox(Prompt, Buttons=0, Title="SimplePython"):
 
 def context(doc, module):
     "Sets needed global variables to a /module/, sets App variable to itself"
-    excel_app_ctx = "Selection", "ActiveSheet", "ActiveWorkbook", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks"
-    app_ctxs = {"Microsoft Excel": excel_app_ctx}
     global App
     App = doc.Parent
     app_ctx = app_ctxs[App.Name]

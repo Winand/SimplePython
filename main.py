@@ -5,16 +5,15 @@ Created on Thu Aug 20 13:20:59 2015
 @author: Winand
 """
 from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom, print
-from general import run_lock, interrupt_lock
+from general import run_lock, interrupt_lock, loadIcons, office_icons
 import struct, json, pathlib
 import importlib, _thread
 import win32file, win32con, winnt
-from threaded_ui import QtApp, invoke, QtCore, QtGui, app, isConsoleApp
+from threaded_ui import QtApp, invoker, QtCore, QtGui, app, isConsoleApp
 import sys, threading, time
 
 import socketserver
 SHARED_SERVER_ADDR, SHARED_SERVER_PORT = "127.0.0.1", 50002
-appPath = pathlib.Path(__file__).absolute().parent
             
 class TCPServer(socketserver.TCPServer):
     allow_reuse_address = True
@@ -54,7 +53,7 @@ class Handler(socketserver.BaseRequestHandler):
                 return macro.__doc__ or ""
             else: #Caller must 'Test' if server is 'OK' before this
                 print("Macro '%s' called "%path[1])
-                invoke(app().form.startMacro, macro, args["Workbook"])
+                invoker.invoke(app().form.startMacro, macro, args["Workbook"])
                 return "OK"
         elif msg == "Request":
             print("Macro list requested")
@@ -73,9 +72,9 @@ class Handler(socketserver.BaseRequestHandler):
             print("Unknown message")
             return "Unknown"
        
-watch, loader_lock = {}, threading.RLock()
 def initModuleLoader():
-    src_path = str(appPath.joinpath("source"))
+    watch, loader_lock = {}, threading.RLock()
+    src_path = str(app().path.joinpath("source"))
     def watcher():
         def readChanges(h, flags):
             return win32file.ReadDirectoryChangesW(h, 1024, True, flags, None, None)
@@ -98,7 +97,7 @@ def initModuleLoader():
             
     def import_mod(mod_name):
         try:
-            macro_tree[mod_name] = []
+            macro_tree[mod_name] = {}
             modules[mod_name] = importlib.import_module(SOURCEDIR+"."+mod_name)
             print("Module '%s' updated"%mod_name)
         except Exception as e:
@@ -108,15 +107,16 @@ def initModuleLoader():
     def reloader():
         while True:
             with loader_lock:
-                for i in watch:
-                    if watch[i] == "add":
-                        if i in modules: unload(i)
-                        import_mod(i)
-                    elif watch[i] == "del":
-                        unload(i)
-                        print("Module '%s' unloaded"%i)
-                    invoke(app().form.updateMacroTree)
-                watch.clear()
+                if len(watch): #if update needed
+                    for i in watch:
+                        if watch[i] == "add":
+                            if i in modules: unload(i)
+                            import_mod(i)
+                        elif watch[i] == "del":
+                            unload(i)
+                            print("Module '%s' unloaded"%i)
+                    invoker.wait(app().form.updateMacroTree)
+                    watch.clear()
             time.sleep(1)
     for i in [f for f in pathlib.Path(src_path).iterdir() if f.is_file() and
                             f.suffix == ".py" and not f.stem.startswith("__")]:
@@ -128,17 +128,20 @@ def initModuleLoader():
 
 class TempTrayIcon:
     "Temporary changes tray icon"
-    def __init__(self, systray, tempicon):
+    def __init__(self, systray, temptext, tempicon):
         f = QtGui.qApp.style().standardIcon \
             if type(tempicon) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
         self.tray = systray
         self.oldicon, self.newicon = self.tray.icon(), f(tempicon)
+        self.oldtip, self.newtip = self.tray.toolTip(), temptext
         
     def __enter__(self):
         self.tray.setIcon(self.newicon)
+        self.tray.setToolTip(self.newtip)
         
     def __exit__(self, *args):
         self.tray.setIcon(self.oldicon)
+        self.tray.setToolTip(self.oldtip)
         
 class SimplePython(QtGui.QWidget):
     def __init__(self):
@@ -147,6 +150,8 @@ class SimplePython(QtGui.QWidget):
         threading.Thread(target=self.server.serve_forever).start()
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
         self.terminated.connect(self.btnExit_clicked)
+        self.twModules.header().close()
+        loadIcons()
 
     def tray_activated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Trigger:
@@ -163,18 +168,34 @@ class SimplePython(QtGui.QWidget):
     def btnClear_clicked(self):
         self.txtConsole.clear()
         
+    def twModules_currentItemChanged(self, item, previous):
+        name = item.text(0)
+        m_item = item.parent()
+        if m_item:
+            mod = m_item.text(0)
+            type_ = macro_tree[mod][name]+" macro"
+            text = getattr(modules[mod], name).__doc__
+            name = mod+"."+name
+        else:
+            type_ = "module"
+            text = modules[name].__doc__
+        self.lblMacroInfo.setText("<b>%s</b> (%s)<br/><br/>%s"%
+                    (name, type_, (text or "").strip().replace('\n', "<br/>")))
+        
     @QtCore.pyqtSlot()
     def updateMacroTree(self):
-#        d=QtGui.QDialog()
-#        d.setWindowModality(1)
-#        d.exec()
-        ret = ""
+        self.twModules.clear()
         for m in macro_tree:
-            ret += "» "+m+"\n"
-            for i, j in enumerate(macro_tree[m]):
-                ret += ("└ " if i==len(macro_tree[m])-1 else "├ ")+j+"\n"
-            ret += "\n"
-        self.txtModules.setPlainText(ret)
+            wbi = QtGui.QTreeWidgetItem(self.twModules, [m])
+            wbi.setIcon(0, office_icons["Module"])
+            macro_list = macro_tree[m]
+            for j in macro_list:
+                ic = office_icons.get(macro_list[j], None)
+                child = QtGui.QTreeWidgetItem([j])
+                if ic:
+                    child.setIcon(0, ic)
+                wbi.addChild(child)
+            wbi.setExpanded(True)
         
     def btnExit_clicked(self):
         self.server.shutdown()
@@ -188,10 +209,11 @@ class SimplePython(QtGui.QWidget):
             
     @QtCore.pyqtSlot(object, object)
     def startMacro(self, macro, wb):
-        with TempTrayIcon(app().form.tray,
+        with TempTrayIcon(self.tray, "%s\nRunning: %s"%(self.tray.toolTip(), macro.__name__),
                           QtGui.QStyle.SP_ArrowRight):
             macro(wb)
             
 stdout = None if isConsoleApp() else "txtConsole" #redirect output if no console
-QtApp(SimplePython, ontop=False, hidden=True, stdout=stdout, 
-      tray={"icon": str(appPath.joinpath(r"res\icon.png")), "tip": "SimplePython Server"})
+icon_path = str(pathlib.Path(__file__).absolute().parent.joinpath(r"res\icon.png"))
+QtApp(SimplePython, ontop=True, hidden=True, stdout=stdout, 
+      tray={"icon": icon_path, "tip": "SimplePython Server"})

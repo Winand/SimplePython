@@ -14,7 +14,7 @@ import pythoncom, string, sys, datetime, builtins, threading
 from functools import wraps
 import context
 import cProfile, pstats, io #Profiling
-from threaded_ui import app
+from threaded_ui import app, QtGui
 
 run_lock, interrupt_lock = threading.Lock(), threading.Lock()
               
@@ -22,29 +22,50 @@ COL = {} #dict of column names
 for i in string.ascii_uppercase:
     COL[i] = ord(i)-ord("A")+1
     COL["A"+i] = 26+ord(i)-ord("A")+1
+
+MicrosoftOffice = "Microsoft Office"
+office_icons = {context.Excel: r"res\excel.png", context.Word: r"res\word.png",
+                context.PowerPoint: r"res\powerpoint.png",
+                MicrosoftOffice: r"res\office.png", "Module": r"res\icon.png"}
+
+def loadIcons():
+    for i in office_icons:
+        office_icons[i] = QtGui.QIcon(str(app().path.joinpath(office_icons[i])))
     
 def print(*args, **kwargs):
     "print with timestamp"
     builtins.print(datetime.datetime.now().strftime("%M:%S|"), *args, **kwargs)
+
+def optional_arguments(f):
+    "Allows to use any decorator with or w/o arguments \
+    http://stackoverflow.com/a/14412901/1119602"
+    @wraps(f)
+    def new_dec(*args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            return f(args[0])
+        else: return lambda realf: f(realf, *args, **kwargs)
+    return new_dec
     
-def macro(func):
+@optional_arguments    
+def macro(func, for_=MicrosoftOffice):
     if func.__module__.startswith(SOURCEDIR+"."):
         module = func.__module__[len(SOURCEDIR+"."):]
     else: module = func.__module__
     if module not in macro_tree:
-        macro_tree[module] = []
+        macro_tree[module] = {}
     if func.__name__ not in macro_tree[module]: #in case of duplicate macro names
-        macro_tree[module].append(func.__name__)
+        macro_tree[module][func.__name__] = for_
+        
     @wraps(func)
     def wrapper(doc):
         doc_obj = getOpenedFileObject(doc)
         if doc_obj:
             context.context(doc_obj, modules[module])
             try:
-#                with Profile():        
+#                with Profile():
                 with run_lock:
                     return func()
-                    while interrupt_lock.locked(): pass
+                    while interrupt_lock.locked(): pass #FIXME: makes NO sense after return
             except KeyboardInterrupt:
                 print("Macro '%s' interrupted"%func.__name__)
             except Exception as e:
@@ -58,9 +79,6 @@ def macro(func):
                 except: print("Failed to turn on screen updating!")
         else: print("Opened document '%s' not found"%doc)
     return wrapper
-
-context.macro = macro #so macro can be imported from context
-context.print = lambda *args, **kwargs: print(">", *args, **kwargs) #macro prints are marked with ">" sign
     
 def getOpenedFileObject(name):
     if name in comobj_cache:
@@ -92,3 +110,6 @@ class Profile():
         
 def showConsole():
     app().form.showWindow(console=True)
+
+context.macro = macro #so macro can be imported from context
+context.print = lambda *args, **kwargs: print(">", *args, **kwargs) #macro prints are marked with ">" sign
