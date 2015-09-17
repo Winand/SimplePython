@@ -114,5 +114,6 @@ def extract_number():
         
 @macro(Excel)
 def EXCEPTION():
+#    raise Exception
     while 1: pass
             

@@ -5,7 +5,7 @@ Created on Thu Aug 20 13:20:59 2015
 @author: Winand
 """
 from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom, print
-from general import run_lock, interrupt_lock, loadIcons, office_icons
+from general import run_lock, loadIcons, office_icons
 import struct, json, pathlib
 import importlib, _thread
 import win32file, win32con, winnt
@@ -57,14 +57,15 @@ class Handler(socketserver.BaseRequestHandler):
                 return "OK"
         elif msg == "Request":
             print("Macro list requested")
-            return "|".join(getMacroList())
+            return "|".join(getMacroList(args["Application"]))
         elif msg == "Test":
             print("Connection checked")
-            return "Busy" if run_lock.locked() else "OK"
+            with run_lock:
+                return "Busy" if not run_lock._value else "OK"
         elif msg == "Interrupt":
             print("Request to interrupt macro")
-            with interrupt_lock: #FIXME: It's possible to make several requests before macro is interrupted. Is it ok?
-                if run_lock.locked():
+            with run_lock: #FIXME: It's possible to make several requests before macro is interrupted. Is it ok?
+                if not run_lock._value:
                     _thread.interrupt_main()
                 else: return "Not busy"
             return "OK"

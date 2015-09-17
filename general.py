@@ -16,7 +16,7 @@ import context
 import cProfile, pstats, io #Profiling
 from threaded_ui import app, QtGui
 
-run_lock, interrupt_lock = threading.Lock(), threading.Lock()
+run_lock = threading.Semaphore(2) #for macro interruption
               
 COL = {} #dict of column names
 for i in string.ascii_uppercase:
@@ -62,10 +62,11 @@ def macro(func, for_=MicrosoftOffice):
         if doc_obj:
             context.context(doc_obj, modules[module])
             try:
-#                with Profile():
                 with run_lock:
-                    return func()
-                    while interrupt_lock.locked(): pass #FIXME: makes NO sense after return
+#                    with Profile():
+                    ret = func()
+                    while not run_lock._value: pass #prevent interruption outside try block
+                    return ret
             except KeyboardInterrupt:
                 print("Macro '%s' interrupted"%func.__name__)
             except Exception as e:
@@ -94,8 +95,8 @@ def getOpenedFileObject(name):
                     rot.GetObject(i).QueryInterface(pythoncom.IID_IDispatch))
             return comobj_cache[name]
     
-def getMacroList():
-    return [f if m==DEF_MODULE else m+"."+f for m in macro_tree for f in macro_tree[m]]
+def getMacroList(app):
+    return [f if m==DEF_MODULE else m+"."+f for m in macro_tree for f in macro_tree[m] if macro_tree[m][f] in (app, MicrosoftOffice)]
     
 class Profile():        
     def __enter__(self):
