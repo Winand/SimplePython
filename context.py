@@ -17,7 +17,7 @@ def ExtractValues(func):
         return func(*args, **kwargs)
     return func_wrapper
     
-Excel, Word, PowerPoint = "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint" #Application.Name
+Excel, Word, PowerPoint, Office = "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint", "MSO" #Application.Name, except for /Office/
 app_ctxs = {
     Excel: ("Selection", "ActiveSheet", "ActiveWorkbook", "ActiveWindow", "ActiveCell", "Range", "Cells", "Intersect", "Workbooks")
 }

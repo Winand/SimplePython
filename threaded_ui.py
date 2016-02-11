@@ -211,8 +211,12 @@ class QtApp(QtGui.QApplication):
         
     def setupTrayIcon(self, form):
         if self._tray:
-            f = QtGui.qApp.style().standardIcon \
-                if type(self._tray["icon"]) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+            if type(self._tray["icon"]) is not QtGui.QStyle.StandardPixmap:
+                f = QtGui.QIcon
+                path = pathlib.Path(self._tray["icon"])
+                if not path.is_absolute():
+                    self._tray["icon"] = str(self.path.joinpath(self._tray["icon"]))
+            else: f = QtGui.qApp.style().standardIcon
             self.addTrayIcon(form, f(self._tray["icon"]), self._tray.get("tip", None))
             if form.windowIcon().isNull(): #Add icon from tray
                 form.setWindowIcon(f(self._tray["icon"]))
@@ -241,7 +245,7 @@ def isConsoleApp():
 
 def Dialog(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kwargs):
     "Dialog.accept(value) - close dialog and return /value/"
-    def accept(self, ret):
+    def accept(self, ret=None):
         super(Form, self).accept()
         self._answer = ret
     if QtGui.QDialog not in Form.__bases__: #inherit from QDialog if needed

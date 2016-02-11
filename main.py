@@ -5,7 +5,8 @@ Created on Thu Aug 20 13:20:59 2015
 @author: Winand
 """
 from general import getMacroList, DEF_MODULE, SOURCEDIR, macro_tree, modules, pythoncom, print
-from general import run_lock, loadIcons, office_icons
+from general import run_lock
+import context
 import struct, json, pathlib
 import importlib, _thread
 import win32file, win32con, winnt
@@ -145,6 +146,9 @@ class TempTrayIcon:
         self.tray.setToolTip(self.oldtip)
         
 class SimplePython(QtGui.QWidget):
+    office_icons = {context.Excel: r"res\excel.png", context.Word: r"res\word.png",
+                    context.PowerPoint: r"res\powerpoint.png",
+                    context.Office: r"res\office.png", "Module": r"res\icon.png"}
     def __init__(self):
         initModuleLoader()
         self.server = TCPServer((SHARED_SERVER_ADDR, SHARED_SERVER_PORT), Handler)
@@ -152,7 +156,8 @@ class SimplePython(QtGui.QWidget):
         self.tray.addMenuItem("Exit", self.btnExit_clicked)
         self.terminated.connect(self.btnExit_clicked)
         self.twModules.header().close()
-        loadIcons()
+        for i in self.office_icons:
+            self.office_icons[i] = QtGui.QIcon(str(app().path.joinpath(self.office_icons[i])))
 
     def tray_activated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Trigger:
@@ -188,10 +193,10 @@ class SimplePython(QtGui.QWidget):
         self.twModules.clear()
         for m in macro_tree:
             wbi = QtGui.QTreeWidgetItem(self.twModules, [m])
-            wbi.setIcon(0, office_icons["Module"])
+            wbi.setIcon(0, self.office_icons["Module"])
             macro_list = macro_tree[m]
             for j in macro_list:
-                ic = office_icons.get(macro_list[j], None)
+                ic = self.office_icons.get(macro_list[j], None)
                 child = QtGui.QTreeWidgetItem([j])
                 if ic:
                     child.setIcon(0, ic)
@@ -215,6 +220,5 @@ class SimplePython(QtGui.QWidget):
             macro(wb)
             
 stdout = None if isConsoleApp() else "txtConsole" #redirect output if no console
-icon_path = str(pathlib.Path(__file__).absolute().parent.joinpath(r"res\icon.png"))
 QtApp(SimplePython, ontop=True, hidden=True, stdout=stdout, 
-      tray={"icon": icon_path, "tip": "SimplePython Server"})
+      tray={"icon": r"res\icon.png", "tip": "SimplePython Server"})

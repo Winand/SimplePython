@@ -113,7 +113,12 @@ def extract_number():
         Cells(i.Row, COL["D"]).Value = x[i1+1:i2]
         
 @macro(Excel)
+def del_end_dot():
+    for i in Selection:
+        i.Value = i.Value.strip("г.")
+        
+@macro(Excel)
 def EXCEPTION():
 #    raise Exception
     while 1: pass
-            
+ 

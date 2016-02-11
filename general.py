@@ -14,7 +14,7 @@ import pythoncom, string, sys, datetime, builtins, threading
 from functools import wraps
 import context
 import cProfile, pstats, io #Profiling
-from threaded_ui import app, QtGui
+from threaded_ui import app
 
 run_lock = threading.Semaphore(2) #for macro interruption
               
@@ -22,15 +22,6 @@ COL = {} #dict of column names
 for i in string.ascii_uppercase:
     COL[i] = ord(i)-ord("A")+1
     COL["A"+i] = 26+ord(i)-ord("A")+1
-
-MicrosoftOffice = "Microsoft Office"
-office_icons = {context.Excel: r"res\excel.png", context.Word: r"res\word.png",
-                context.PowerPoint: r"res\powerpoint.png",
-                MicrosoftOffice: r"res\office.png", "Module": r"res\icon.png"}
-
-def loadIcons():
-    for i in office_icons:
-        office_icons[i] = QtGui.QIcon(str(app().path.joinpath(office_icons[i])))
     
 def print(*args, **kwargs):
     "print with timestamp"
@@ -47,7 +38,7 @@ def optional_arguments(f):
     return new_dec
     
 @optional_arguments    
-def macro(func, for_=MicrosoftOffice):
+def macro(func, for_=context.Office):
     if func.__module__.startswith(SOURCEDIR+"."):
         module = func.__module__[len(SOURCEDIR+"."):]
     else: module = func.__module__
@@ -84,6 +75,7 @@ def macro(func, for_=MicrosoftOffice):
 def getOpenedFileObject(name):
     if name in comobj_cache:
         try:
+            #http://stackoverflow.com/questions/3500503/check-com-interface-still-alive
             o = comobj_cache[name]
             o._oleobj_.GetTypeInfoCount()
             return o
@@ -96,7 +88,8 @@ def getOpenedFileObject(name):
             return comobj_cache[name]
     
 def getMacroList(app):
-    return [f if m==DEF_MODULE else m+"."+f for m in macro_tree for f in macro_tree[m] if macro_tree[m][f] in (app, MicrosoftOffice)]
+    l = [f if m==DEF_MODULE else m+"."+f for m in macro_tree for f in macro_tree[m] if macro_tree[m][f] in (app, context.Office)]
+    return sorted(l, key=lambda s: s.lower())
     
 class Profile():        
     def __enter__(self):
