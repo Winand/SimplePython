@@ -1,6 +1,6 @@
 __author__ = 'МакаровАС'
 
-from PyQt4 import QtCore, QtGui, uic
+from qtpy import QtCore, QtGui, uic, QtWidgets
 import sys, queue, pythoncom, types, pathlib, win32con, win32gui
 import win32process, signal
 import __main__
@@ -82,7 +82,8 @@ class prx():
             ret = getattr(self.client, args[0])
         else:
             if hasattr(self.client, "__self__"):
-                if self.client.__self__.__module__.endswith("QtGui"):
+                _mod = self.client.__self__.__module__  # FIXME: Qt4->5 "QtWidgets" necessary?
+                if _mod.endswith("QtGui") or _mod.endswith("QtWidgets"):
                     #Call QtGui stuff in main thread
                     print_def("THD_UI CALL IN MAIN:", self.client.__name__)
                     ret = inmain(self.client, *args, **kwargs)
@@ -100,7 +101,7 @@ class prx():
     def __eq__(self, other): return self.client is other.client
         
 class GenericWorker(QtCore.QObject):
-    finished = QtCore.pyqtSignal()
+    finished = QtCore.Signal()
     def __init__(self, func, *args, **kwargs):
         class EventLoop(QtCore.QRunnable):
             def run(self_):
@@ -160,7 +161,7 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
             super(Form, self).__init__(flags=(QtCore.Qt.WindowStaysOnTopHint if ontop else 0)|flags)
             uic.loadUi(str(ui or module_path(Form).joinpath(Form.__name__.lower()))+".ui", self)
             if stdout: redirect_stdout(getattr(self, stdout))
-            self.terminated = QtGui.qApp.terminated
+            self.terminated = QtWidgets.qApp.terminated
             if before_init:
                 before_init(self)
             self.autoConnectSignals()
@@ -177,8 +178,8 @@ def WidgetFactory(Form, args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None
         
     return Form_()
 
-class QtApp(QtGui.QApplication):
-    terminated = QtCore.pyqtSignal()
+class QtApp(QtWidgets.QApplication):
+    terminated = QtCore.Signal()
     def __init__(self, Form, *args, flags=QtCore.Qt.WindowType(), ui=None, stdout=None, tray=None, hidden=False, ontop=False, **kwargs):
         "Create new QApplication and specified window"
         super().__init__(sys.argv)
@@ -207,28 +208,28 @@ class QtApp(QtGui.QApplication):
             if int(message.hwnd) == self.msg_dispatcher: #GUI thread dispatcher's been killed
                 print("Application terminated.")
                 self.terminated.emit()
-        return QtGui.QApplication.winEventFilter(self, message)
+        return QtWidgets.QApplication.winEventFilter(self, message)
         
     def setupTrayIcon(self, form):
         if self._tray:
-            if type(self._tray["icon"]) is not QtGui.QStyle.StandardPixmap:
+            if type(self._tray["icon"]) is not QtWidgets.QStyle.StandardPixmap:
                 f = QtGui.QIcon
                 path = pathlib.Path(self._tray["icon"])
                 if not path.is_absolute():
                     self._tray["icon"] = str(self.path.joinpath(self._tray["icon"]))
-            else: f = QtGui.qApp.style().standardIcon
+            else: f = QtWidgets.qApp.style().standardIcon
             self.addTrayIcon(form, f(self._tray["icon"]), self._tray.get("tip", None))
             if form.windowIcon().isNull(): #Add icon from tray
                 form.setWindowIcon(f(self._tray["icon"]))
                 
     def addTrayIcon(self, form, icon, tip=None):
         #Tray icon parent is VERY important: http://python.6.x6.nabble.com/QSystemTrayIcon-still-crashed-app-PyQt4-4-9-1-td4976041.html
-        form.tray = QtGui.QSystemTrayIcon(icon, form)
+        form.tray = QtWidgets.QSystemTrayIcon(icon, form)
         if tip: form.tray.setToolTip(tip)
-        form.tray.setContextMenu(QtGui.QMenu(form)) #Qt doc: "The system tray icon does not take ownership of the menu"
+        form.tray.setContextMenu(QtWidgets.QMenu(form)) #Qt doc: "The system tray icon does not take ownership of the menu"
         form.tray.show()
         form.tray.addMenuItem = bind(self.addMenuItem, form.tray)
-        QtGui.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
+        QtWidgets.qApp.setQuitOnLastWindowClosed(False) #important! open qdialog, hide main window, close qdialog: trayicon stops working
                     
     def addMenuItem(self, *args):
         for i in range(0, len(args), 2):
@@ -248,9 +249,9 @@ def Dialog(Form, *args, flags=QtCore.Qt.WindowType(), ui=None, ontop=False, **kw
     def accept(self, ret=None):
         super(Form, self).accept()
         self._answer = ret
-    if QtGui.QDialog not in Form.__bases__: #inherit from QDialog if needed
+    if QtWidgets.QDialog not in Form.__bases__: #inherit from QDialog if needed
         #http://stackoverflow.com/questions/9539052
-        Form = type(Form.__name__, (QtGui.QDialog,)+Form.__bases__, Form.__dict__.copy())
+        Form = type(Form.__name__, (QtWidgets.QDialog,)+Form.__bases__, Form.__dict__.copy())
     form = WidgetFactory(Form, args, flags=flags, ui=flags, ontop=ontop, kwargs=kwargs)
     form.accept = bind(accept, form)
     form.exec()

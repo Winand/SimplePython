@@ -10,7 +10,7 @@ import context
 import struct, json, pathlib
 import importlib, _thread
 import win32file, win32con, winnt
-from threaded_ui import QtApp, invoker, QtCore, QtGui, app, isConsoleApp
+from threaded_ui import QtApp, invoker, QtCore, QtGui, app, isConsoleApp, QtWidgets
 import sys, threading, time
 
 import socketserver
@@ -131,8 +131,8 @@ def initModuleLoader():
 class TempTrayIcon:
     "Temporary changes tray icon"
     def __init__(self, systray, temptext, tempicon):
-        f = QtGui.qApp.style().standardIcon \
-            if type(tempicon) is QtGui.QStyle.StandardPixmap else QtGui.QIcon
+        f = QtWidgets.qApp.style().standardIcon \
+            if type(tempicon) is QtWidgets.QStyle.StandardPixmap else QtGui.QIcon
         self.tray = systray
         self.oldicon, self.newicon = self.tray.icon(), f(tempicon)
         self.oldtip, self.newtip = self.tray.toolTip(), temptext
@@ -145,7 +145,7 @@ class TempTrayIcon:
         self.tray.setIcon(self.oldicon)
         self.tray.setToolTip(self.oldtip)
         
-class SimplePython(QtGui.QWidget):
+class SimplePython(QtWidgets.QWidget):
     office_icons = {context.Excel: r"res\excel.png", context.Word: r"res\word.png",
                     context.PowerPoint: r"res\powerpoint.png",
                     context.Office: r"res\office.png", "Module": r"res\icon.png"}
@@ -160,7 +160,7 @@ class SimplePython(QtGui.QWidget):
             self.office_icons[i] = QtGui.QIcon(str(app().path.joinpath(self.office_icons[i])))
 
     def tray_activated(self, reason):
-        if reason == QtGui.QSystemTrayIcon.Trigger:
+        if reason == QtWidgets.QSystemTrayIcon.Trigger:
             self.showWindow()
             
     def showWindow(self, console=False):
@@ -188,16 +188,16 @@ class SimplePython(QtGui.QWidget):
         self.lblMacroInfo.setText("<b>%s</b> (%s)<br/><br/>%s"%
                     (name, type_, (text or "").strip().replace('\n', "<br/>")))
         
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def updateMacroTree(self):
         self.twModules.clear()
         for m in macro_tree:
-            wbi = QtGui.QTreeWidgetItem(self.twModules, [m])
+            wbi = QtWidgets.QTreeWidgetItem(self.twModules, [m])
             wbi.setIcon(0, self.office_icons["Module"])
             macro_list = macro_tree[m]
             for j in macro_list:
                 ic = self.office_icons.get(macro_list[j], None)
-                child = QtGui.QTreeWidgetItem([j])
+                child = QtWidgets.QTreeWidgetItem([j])
                 if ic:
                     child.setIcon(0, ic)
                 wbi.addChild(child)
@@ -206,17 +206,17 @@ class SimplePython(QtGui.QWidget):
     def btnExit_clicked(self):
         self.server.shutdown()
         self.server.server_close()
-        QtGui.qApp.quit()
+        QtWidgets.qApp.quit()
     
     def closeEvent(self, event):
         if event.type() == event.Close:
             event.ignore()
             self.hide()
             
-    @QtCore.pyqtSlot(object, object)
+    @QtCore.Slot(object, object)
     def startMacro(self, macro, wb):
         with TempTrayIcon(self.tray, "%s\nRunning: %s"%(self.tray.toolTip(), macro.__name__),
-                          QtGui.QStyle.SP_ArrowRight):
+                          QtWidgets.QStyle.SP_ArrowRight):
             macro(wb)
             
 stdout = None if isConsoleApp() else "txtConsole" #redirect output if no console

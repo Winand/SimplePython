@@ -7,7 +7,7 @@ Created on Thu Aug 27 10:45:29 2015
 
 import datetime, dateutil.parser, re
 from win32com.client import gencache
-from threaded_ui import Dialog, QtGui, QtCore
+from threaded_ui import Dialog, QtGui, QtCore, QtWidgets
 
 def ExtractValues(func):
     "Decorator: find arguments with Value attribute and replace them with values"
@@ -81,7 +81,7 @@ def short(v):
     "Convert int to signed short"
     return v-0x10000 if v>>15 else v
     
-_ = QtGui.QMessageBox
+_ = QtWidgets.QMessageBox
 __ic = {vbQuestion: _.Question, vbInformation: _.Information,
         vbExclamation: _.Warning, vbCritical: _.Critical}
 __bt = {vbOKCancel: _.Ok|_.Cancel, vbYesNo: _.Yes|_.No, vbRetryCancel: _.Retry|_.Cancel,
